@@ -2,12 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { AppButton, AppInput, AppNavLink, AppPanel, AppSelect, FieldLabel } from "@/components/ui/primitives";
+import {
+  AppButton,
+  AppInput,
+  AppPanel,
+  AppSelect,
+  FieldLabel,
+  AppNavLink
+} from "@/components/ui/primitives";
 
 const contentTypes = [
   { value: "social_post", label: "Social Post" },
   { value: "blog_post", label: "Blog Post" },
-  { value: "landing_page", label: "Landing Page" }
+  { value: "landing_page", label: "Landing Page" },
 ];
 
 export function NewDocumentForm() {
@@ -26,18 +33,23 @@ export function NewDocumentForm() {
       const response = await fetch("/api/documents", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           contentType,
-          title: title || "Untitled draft"
-        })
+          title: title || "Untitled draft",
+        }),
       });
 
-      const payload = (await response.json()) as { document?: { id?: string }; error?: string };
+      const payload = (await response.json()) as {
+        document?: { id?: string };
+        error?: string;
+      };
 
       if (!response.ok || !payload.document?.id) {
-        setErrorMessage(payload.error ?? "Unable to create the document right now.");
+        setErrorMessage(
+          payload.error ?? "Unable to create the document right now.",
+        );
         return;
       }
 
@@ -48,41 +60,64 @@ export function NewDocumentForm() {
   }
 
   return (
-    <main className="page-shell py-8">
-      <div className="page-frame flex min-h-[calc(100vh-4rem)] flex-col">
-        <header className="flex items-center justify-between py-4">
-          <AppNavLink href="/" className="brand-mark text-[3.8rem] text-white md:text-[4.4rem]">
-            mivo
+    <main className="min-h-screen text-white overflow-hidden relative font-sans">
+      <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 flex min-h-screen flex-col relative z-10">
+        <header className="flex items-center justify-between py-6 border-b border-[var(--border)]/50">
+          <AppNavLink
+            href="/"
+            className="brand-mark text-3xl md:text-4xl text-white hover:opacity-80 transition-opacity"
+          >
+            Mivo
           </AppNavLink>
-          <AppNavLink href="/studio/new">Studio</AppNavLink>
         </header>
-        <div className="grid flex-1 items-center gap-14 py-10 lg:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
-          <div className="min-w-0">
-            <p className="mb-5 text-xs uppercase tracking-[0.3em] text-[var(--text-soft)]">Create draft</p>
-            <h1 className="font-display max-w-xl text-5xl leading-[0.9] md:text-7xl">
-              Start from a cleaner brief and open directly into the working studio.
+        <div className="flex flex-col lg:flex-row flex-1 items-center justify-between gap-16 py-16 lg:py-0">
+          <div className="min-w-0 flex-1 max-w-2xl lg:max-w-none">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-md mb-8">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--accent-strong)]">
+                Initialize Sequence
+              </span>
+            </div>
+            <h1 className="font-display text-5xl sm:text-6xl lg:text-[4.5rem] leading-[1.05] tracking-tight mb-8">
+              Configure your <br className="hidden lg:block" />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-[var(--accent-strong)]">
+                workspace.
+              </span>
             </h1>
-            <p className="mt-6 max-w-lg text-base leading-7 text-[var(--text-muted)]">
-              Choose the format, name the draft, and land in an editor built for progressive generation, checkpointed versions, and selective rewrites.
+            <p className="text-lg sm:text-xl leading-relaxed text-[var(--text-muted)] max-w-xl mb-12">
+              Define the schema, instantiate the document, and seamlessly
+              transition into the intelligent composer environment.
             </p>
-            <div className="mt-10 studio-list max-w-xl">
+            <div className="grid sm:grid-cols-2 gap-4 max-w-2xl">
               {[
-                "Social posts for a tighter first-pass narrative",
-                "Blog drafts with structured sections and rewrite controls",
-                "Landing pages composed from reusable editorial blocks"
-              ].map((line) => (
-                <div key={line} className="studio-list-row">
-                  <p className="studio-list-copy text-sm leading-7 text-[var(--text-soft)]">{line}</p>
+                "Social posts for concise, high-impact narrative structures.",
+                "Blog drafts embedded with auto-resolving sectional context.",
+                "Landing pages synthesized from foundational brand assets.",
+              ].map((line, i) => (
+                <div
+                  key={line}
+                  className="p-4 rounded-xl border border-[var(--border)] bg-[#0A0A0A] hover:bg-[#0F0F0F] transition-colors flex items-start gap-4"
+                >
+                  <div className="text-[10px] text-[var(--accent-strong)] font-mono font-semibold shrink-0 pt-1">
+                    0{i + 1}
+                  </div>
+                  <p className="text-sm leading-relaxed text-[var(--text-soft)]">
+                    {line}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
-          <AppPanel className="p-8 md:p-10">
+          <AppPanel className="p-8 md:p-10 w-full lg:w-[480px] xl:w-[520px] shrink-0 border border-[var(--border)]/50 bg-[#0A0A0A]/80 backdrop-blur-xl relative">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-strong)]/30 to-transparent opacity-50" />
             <form onSubmit={handleSubmit}>
               <div className="space-y-7">
                 <label className="space-y-3">
                   <FieldLabel>Content Type</FieldLabel>
-                  <AppSelect value={contentType} onValueChange={setContentType} options={contentTypes} />
+                  <AppSelect
+                    value={contentType}
+                    onValueChange={setContentType}
+                    options={contentTypes}
+                  />
                 </label>
                 <label className="space-y-3">
                   <FieldLabel>Title</FieldLabel>
@@ -94,13 +129,28 @@ export function NewDocumentForm() {
                   />
                 </label>
               </div>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <AppButton type="submit" disabled={submitting} tone="primary" size="3">
-                  {submitting ? "Creating..." : "Open Studio"}
+              <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
+                <AppButton
+                  type="submit"
+                  disabled={submitting}
+                  tone="primary"
+                  size="3"
+                  className="w-full sm:w-auto h-12 px-8 shadow-[0_0_20px_rgba(47,223,160,0.15)]"
+                >
+                  {submitting ? "Launching..." : "Launch App"}
                 </AppButton>
-                <AppNavLink href="/">Back home</AppNavLink>
+                <AppNavLink
+                  href="/"
+                  className="text-sm text-[var(--text-soft)] hover:text-white transition-colors text-center"
+                >
+                  Cancel
+                </AppNavLink>
               </div>
-              {errorMessage ? <p className="mt-4 text-sm text-[rgb(255,179,173)]">{errorMessage}</p> : null}
+              {errorMessage ? (
+                <p className="mt-4 text-sm text-[rgb(255,179,173)]">
+                  {errorMessage}
+                </p>
+              ) : null}
             </form>
           </AppPanel>
         </div>

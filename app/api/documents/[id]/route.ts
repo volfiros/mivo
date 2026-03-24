@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { createRouteErrorResponse } from "@/lib/api-error";
 import { getDocument, saveDocumentContent } from "@/lib/records";
 
 const patchSchema = z.object({
@@ -30,9 +31,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     });
     return NextResponse.json({ versionId });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to save document" },
-      { status: 400 }
-    );
+    return createRouteErrorResponse(error, "Unable to save document");
   }
 }

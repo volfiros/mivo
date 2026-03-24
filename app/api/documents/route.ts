@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { createRouteErrorResponse } from "@/lib/api-error";
 import { createDocument } from "@/lib/records";
 
 const requestSchema = z.object({
@@ -18,9 +19,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ document });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to create document" },
-      { status: 400 }
-    );
+    return createRouteErrorResponse(error, "Unable to create document");
   }
 }

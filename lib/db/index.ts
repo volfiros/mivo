@@ -41,6 +41,17 @@ export async function ensureDatabase() {
   `);
 
   await db.execute(sql`
+    alter table documents
+      add column if not exists content_type text,
+      add column if not exists title text,
+      add column if not exists status text,
+      add column if not exists current_content_json jsonb,
+      add column if not exists current_version_id text,
+      add column if not exists created_at timestamptz not null default now(),
+      add column if not exists updated_at timestamptz not null default now();
+  `);
+
+  await db.execute(sql`
     create table if not exists document_versions (
       id text primary key,
       document_id text not null,
@@ -55,6 +66,21 @@ export async function ensureDatabase() {
       model_snapshot jsonb,
       created_at timestamptz not null default now()
     );
+  `);
+
+  await db.execute(sql`
+    alter table document_versions
+      add column if not exists document_id text,
+      add column if not exists version_number integer,
+      add column if not exists checkpoint_version_number integer,
+      add column if not exists storage_mode text,
+      add column if not exists base_version_id text,
+      add column if not exists full_snapshot_json jsonb,
+      add column if not exists json_patch jsonb,
+      add column if not exists change_source text,
+      add column if not exists prompt_snapshot jsonb,
+      add column if not exists model_snapshot jsonb,
+      add column if not exists created_at timestamptz not null default now();
   `);
 
   await db.execute(sql`
@@ -74,6 +100,20 @@ export async function ensureDatabase() {
   `);
 
   await db.execute(sql`
+    alter table generation_jobs
+      add column if not exists document_id text,
+      add column if not exists target_version_id text,
+      add column if not exists mode text,
+      add column if not exists status text,
+      add column if not exists request_payload jsonb,
+      add column if not exists progress integer not null default 0,
+      add column if not exists error text,
+      add column if not exists started_at timestamptz,
+      add column if not exists completed_at timestamptz,
+      add column if not exists created_at timestamptz not null default now();
+  `);
+
+  await db.execute(sql`
     create table if not exists generation_events (
       id text primary key,
       job_id text not null,
@@ -82,6 +122,15 @@ export async function ensureDatabase() {
       payload jsonb not null,
       created_at timestamptz not null default now()
     );
+  `);
+
+  await db.execute(sql`
+    alter table generation_events
+      add column if not exists job_id text,
+      add column if not exists sequence integer,
+      add column if not exists event_type text,
+      add column if not exists payload jsonb,
+      add column if not exists created_at timestamptz not null default now();
   `);
 
   await db.execute(sql`
@@ -97,6 +146,16 @@ export async function ensureDatabase() {
   `);
 
   await db.execute(sql`
+    alter table attachments
+      add column if not exists document_id text,
+      add column if not exists filename text,
+      add column if not exists mime_type text,
+      add column if not exists storage_path text,
+      add column if not exists extracted_text text,
+      add column if not exists created_at timestamptz not null default now();
+  `);
+
+  await db.execute(sql`
     create table if not exists document_context_chunks (
       id text primary key,
       document_id text not null,
@@ -106,6 +165,16 @@ export async function ensureDatabase() {
       embedding jsonb,
       created_at timestamptz not null default now()
     );
+  `);
+
+  await db.execute(sql`
+    alter table document_context_chunks
+      add column if not exists document_id text,
+      add column if not exists attachment_id text,
+      add column if not exists chunk_index integer,
+      add column if not exists content text,
+      add column if not exists embedding jsonb,
+      add column if not exists created_at timestamptz not null default now();
   `);
 
   ensured = true;

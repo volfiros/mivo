@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createRouteErrorResponse } from "@/lib/api-error";
 import { rewriteRequestSchema } from "@/lib/schema/content";
 import { getDocument } from "@/lib/records";
 import { rewriteSelection } from "@/lib/ai/generation";
@@ -21,9 +22,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ replacement });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to rewrite selection" },
-      { status: 400 }
-    );
+    return createRouteErrorResponse(error, "Unable to rewrite selection");
   }
 }

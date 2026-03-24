@@ -1,3 +1,5 @@
+import type { Route } from "next";
+import NextLink from "next/link";
 import { AppButtonLink, AppNavLink } from "@/components/ui/primitives";
 import { FadeIn, ScaleIn } from "@/components/ui/landing-animations";
 
@@ -21,51 +23,45 @@ const supportPoints = [
 
 const workflow = [
   {
+    step: "STEP 1",
     title: "Contextual Grounding",
     description:
       "Upload your PDFs, internal docs, and style guides. The engine grounds every word.",
   },
   {
+    step: "STEP 2",
     title: "Progressive Generation",
     description:
       "Watch the blocks stream in. Only valid, structured text enters your final document.",
   },
   {
+    step: "STEP 3",
     title: "Live Co-editing",
     description:
       "Edit generated paragraphs while the rest of the draft continues writing below.",
   },
 ];
 
+const workflowAction = {
+  href: "/studio/new" as Route,
+  title: "Open the Studio",
+  description:
+    "Launch a new workspace and start building the draft immediately.",
+  label: "Launch workspace",
+};
+
 export function Landing() {
   return (
-    <main className="min-h-screen bg-[#000000] text-white selection:bg-[var(--accent-strong)]/20 overflow-hidden font-sans">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,92,67,0.15),transparent_40%),radial-gradient(circle_at_top_right,rgba(52,227,155,0.08),transparent_30%)] pointer-events-none" />
-
-      <div
-        className="absolute inset-0 opacity-[0.15] mix-blend-soft-light pointer-events-none"
-        style={{
-          backgroundImage:
-            "radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px)",
-          backgroundSize: "16px 16px",
-        }}
-      />
-
+    <main className="min-h-screen text-white selection:bg-[var(--accent-strong)]/20 overflow-hidden font-sans">
       <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
         <header className="flex items-center justify-between py-6 border-b border-[var(--border)]/50">
           <AppNavLink
             href="/"
-            className="font-display text-2xl font-bold tracking-tighter text-white hover:opacity-80 transition-opacity"
+            className="brand-mark text-3xl md:text-4xl text-white hover:opacity-80 transition-opacity"
           >
-            mivo<span className="text-[var(--accent-strong)]">.</span>
+            Mivo
           </AppNavLink>
-          <nav className="flex items-center gap-6">
-            <AppNavLink
-              href="/studio/new"
-              className="text-sm font-medium text-[var(--text-soft)] hover:text-white transition-colors"
-            >
-              Studio
-            </AppNavLink>
+          <div className="flex items-center">
             <AppButtonLink
               href="/studio/new"
               tone="primary"
@@ -73,7 +69,7 @@ export function Landing() {
             >
               Launch App
             </AppButtonLink>
-          </nav>
+          </div>
         </header>
 
         <section className="flex flex-col lg:flex-row items-center justify-between gap-16 py-20 lg:py-32 min-h-[calc(100vh-80px)]">
@@ -281,13 +277,13 @@ export function Landing() {
             </div>
 
             <div className="lg:w-2/3 grid sm:grid-cols-2 gap-6">
-              {workflow.map((step, index) => (
+              {workflow.map((step) => (
                 <div
                   key={step.title}
                   className="p-6 rounded-2xl border border-[var(--border)] bg-[#0A0A0A] flex flex-col"
                 >
                   <div className="text-[var(--text-soft)] font-mono text-xs mb-8">
-                    STEP {index + 1}
+                    {step.step}
                   </div>
                   <h3 className="font-display text-2xl text-white mb-3 mt-auto">
                     {step.title}
@@ -297,27 +293,43 @@ export function Landing() {
                   </p>
                 </div>
               ))}
-              <div className="p-6 rounded-2xl border border-dashed border-[var(--accent-strong)]/30 bg-[var(--accent)]/5 flex flex-col justify-center items-center text-center group cursor-pointer hover:bg-[var(--accent)]/10 transition-colors">
-                <div className="w-12 h-12 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--accent-strong)"
-                    strokeWidth="2"
-                  >
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                    <polyline points="12 5 19 12 12 19" />
-                  </svg>
+              <NextLink
+                href={workflowAction.href}
+                className="group relative flex flex-col p-6 rounded-2xl border border-[var(--border)] bg-[#0A0A0A] overflow-hidden transition-all duration-300 hover:border-[var(--accent-strong)]/50 hover:bg-[#0F0F0F]"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-px bg-gradient-to-r from-transparent via-[var(--accent-strong)]/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200px] h-[100px] bg-[var(--accent-strong)]/20 blur-[50px] rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+                <div className="text-[var(--accent-strong)] font-mono text-xs mb-8 flex items-center gap-2 relative z-10">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent-strong)] animate-pulse shadow-[0_0_8px_var(--accent-strong)]" />
+                  ACTION
                 </div>
-                <h3 className="font-display text-lg text-white mb-1">
-                  Experience the Studio
-                </h3>
-                <p className="text-xs text-[var(--accent-strong)] uppercase tracking-wider">
-                  Start building
-                </p>
-              </div>
+
+                <div className="mt-auto relative z-10">
+                  <div className="w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center mb-6 text-[var(--accent-strong)] group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(47,223,160,0.15)] transition-all duration-300">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                      <polyline points="12 5 19 12 12 19" />
+                    </svg>
+                  </div>
+                  <h3 className="font-display text-2xl text-white mb-3">
+                    {workflowAction.title}
+                  </h3>
+                  <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                    {workflowAction.description}
+                  </p>
+                </div>
+              </NextLink>
             </div>
           </div>
         </section>
@@ -340,7 +352,7 @@ export function Landing() {
                 tone="primary"
                 className="h-12 px-8 text-sm font-medium shadow-[0_0_20px_rgba(47,223,160,0.2)]"
               >
-                Initialize Workspace
+                Launch App
               </AppButtonLink>
             </div>
           </div>
