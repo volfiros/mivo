@@ -48,7 +48,7 @@ type StreamEvent =
   | { type: "block.completed"; payload: { blockId: string; nodes: JSONContent[] } }
   | { type: "block.failed"; payload: { blockId: string; error: string } }
   | { type: "generation.completed"; payload: { versionId: string | null } }
-  | { type: "generation.cancelled"; payload: {} };
+  | { type: "generation.cancelled"; payload: Record<string, never> };
 
 function saveDocument(documentId: string, content: JSONContent, title: string) {
   return fetch(`/api/documents/${documentId}`, {

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, max } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { JSONContent } from "@tiptap/core";
 import { ensureDatabase, getDb } from "@/lib/db";

@@ -131,22 +131,24 @@ function RenderNode({ node }: { node: JSONContent }) {
 
 export function DocumentPreview({ content, documentId }: { content: JSONContent; documentId: string }) {
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-6 py-10 md:px-10">
-      <div className="mb-10 flex items-center justify-between gap-4">
-        <AppNavLink href="/" className="brand-mark text-[2.25rem] text-[var(--text)]">
-          mivo
-        </AppNavLink>
-        <div className="flex flex-wrap gap-3">
-          <AppButtonLink href={`/studio/${documentId}` as Route} tone="secondary" size="3">
-            Back to Studio
-          </AppButtonLink>
-          <AppButtonLink href="/studio/new" tone="ghost" size="3">
-            Start Another
-          </AppButtonLink>
+    <main className="page-shell py-10">
+      <div className="page-frame max-w-6xl">
+        <div className="mb-10 flex items-center justify-between gap-4">
+          <AppNavLink href="/" className="brand-mark text-[3.2rem] text-white md:text-[3.6rem]">
+            mivo
+          </AppNavLink>
+          <div className="flex flex-wrap gap-3">
+            <AppButtonLink href={`/studio/${documentId}` as Route} tone="secondary" size="3">
+              Back to Studio
+            </AppButtonLink>
+            <AppButtonLink href="/studio/new" tone="ghost" size="3">
+              Start Another
+            </AppButtonLink>
+          </div>
         </div>
-      </div>
-      <div className="mx-auto max-w-5xl">
-        <RenderNode node={content} />
+        <div className="mx-auto max-w-5xl">
+          <RenderNode node={content} />
+        </div>
       </div>
     </main>
   );

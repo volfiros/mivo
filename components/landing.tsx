@@ -1,203 +1,348 @@
-"use client";
-
-import { motion } from "framer-motion";
 import { AppButtonLink, AppNavLink } from "@/components/ui/primitives";
+import { FadeIn, ScaleIn } from "@/components/ui/landing-animations";
 
 const supportPoints = [
   {
-    value: "Outline first",
-    body: "Users see structure immediately before full blocks are resolved."
+    title: "Outline First",
+    description:
+      "Structure your ideas instantly. See the skeleton before paragraphs resolve.",
   },
   {
-    value: "Selection rewrite",
-    body: "Refine only the text that matters without replacing the whole document."
+    title: "Selection Rewrite",
+    description:
+      "Highlight a single sentence and refine tone without disrupting the whole draft.",
   },
   {
-    value: "Checkpoint history",
-    body: "Restore later versions without replaying every edit from the first draft."
-  }
+    title: "Version History",
+    description:
+      "Roll back to earlier concepts natively. Checkpoints track every major AI action.",
+  },
 ];
 
 const workflow = [
   {
-    label: "Prompt and source",
-    body: "Start with a brief, attach a PDF or note set, and keep the context available to every generation run."
+    title: "Contextual Grounding",
+    description:
+      "Upload your PDFs, internal docs, and style guides. The engine grounds every word.",
   },
   {
-    label: "Valid block stream",
-    body: "Placeholders appear first, preview deltas stay transient, and only completed blocks enter the TipTap document."
+    title: "Progressive Generation",
+    description:
+      "Watch the blocks stream in. Only valid, structured text enters your final document.",
   },
   {
-    label: "Edit while it runs",
-    body: "Completed blocks stay editable while later sections continue generating in the same workspace."
-  }
+    title: "Live Co-editing",
+    description:
+      "Edit generated paragraphs while the rest of the draft continues writing below.",
+  },
 ];
 
 export function Landing() {
   return (
-    <main className="min-h-screen px-6 pb-20 md:px-12">
-      <section className="landing-hero">
-        <div className="relative z-10 mx-auto flex min-h-screen max-w-7xl flex-col">
-          <header className="flex items-center justify-between py-8">
-            <AppNavLink href="/" className="brand-mark text-[2.65rem] text-[var(--text)]">
-              mivo
+    <main className="min-h-screen bg-[#000000] text-white selection:bg-[var(--accent-strong)]/20 overflow-hidden font-sans">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,92,67,0.15),transparent_40%),radial-gradient(circle_at_top_right,rgba(52,227,155,0.08),transparent_30%)] pointer-events-none" />
+
+      <div
+        className="absolute inset-0 opacity-[0.15] mix-blend-soft-light pointer-events-none"
+        style={{
+          backgroundImage:
+            "radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px)",
+          backgroundSize: "16px 16px",
+        }}
+      />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
+        <header className="flex items-center justify-between py-6 border-b border-[var(--border)]/50">
+          <AppNavLink
+            href="/"
+            className="font-display text-2xl font-bold tracking-tighter text-white hover:opacity-80 transition-opacity"
+          >
+            mivo<span className="text-[var(--accent-strong)]">.</span>
+          </AppNavLink>
+          <nav className="flex items-center gap-6">
+            <AppNavLink
+              href="/studio/new"
+              className="text-sm font-medium text-[var(--text-soft)] hover:text-white transition-colors"
+            >
+              Studio
             </AppNavLink>
-            <nav className="flex items-center gap-6">
-              <AppNavLink href="/studio/new">Studio</AppNavLink>
-              <AppNavLink href="/studio/new">Start</AppNavLink>
-            </nav>
-          </header>
-
-          <div className="grid flex-1 items-center gap-14 pb-14 pt-6 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)]">
-            <motion.div
-              initial={{ opacity: 0, y: 28 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-              className="min-w-0"
+            <AppButtonLink
+              href="/studio/new"
+              tone="primary"
+              className="h-9 px-4 text-xs tracking-wide"
             >
-              <p className="mb-5 text-sm uppercase tracking-[0.28em] text-[var(--text-soft)]">Editorial AI Studio</p>
-              <h1 className="font-display max-w-xl text-5xl leading-[0.88] md:text-8xl">
-                Make the draft feel finished before the model stops writing.
-              </h1>
-              <p className="mt-7 max-w-md text-base leading-7 text-[var(--text-muted)] md:text-lg">
-                mivo turns prompts, source files, and revision intent into social posts, blogs, and landing pages with a cleaner, block-native editing flow.
+              Launch App
+            </AppButtonLink>
+          </nav>
+        </header>
+
+        <section className="flex flex-col lg:flex-row items-center justify-between gap-16 py-20 lg:py-32 min-h-[calc(100vh-80px)]">
+          <FadeIn className="flex-1 w-full max-w-2xl lg:max-w-none" y={20}>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-md mb-8">
+              <div className="w-2 h-2 rounded-full bg-[var(--accent-strong)] animate-pulse shadow-[0_0_8px_var(--accent-strong)]" />
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-soft)]">
+                Next-Gen Editorial
+              </span>
+            </div>
+
+            <h1 className="font-display text-5xl sm:text-6xl lg:text-[5rem] leading-[1.05] tracking-tight mb-8">
+              Draft at the speed of <br className="hidden lg:block" />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-[var(--accent-strong)]">
+                thought.
+              </span>
+            </h1>
+
+            <p className="text-lg sm:text-xl leading-relaxed text-[var(--text-muted)] max-w-xl mb-10">
+              Transform prompts and source files into structured posts, blogs,
+              and landing pages with a cleaner, block-native editing flow.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <AppButtonLink
+                href="/studio/new"
+                tone="primary"
+                className="w-full sm:w-auto h-12 px-8 text-sm font-medium shadow-[0_0_20px_rgba(47,223,160,0.2)] hover:shadow-[0_0_30px_rgba(47,223,160,0.3)] transition-all"
+              >
+                Start Generating
+              </AppButtonLink>
+              <AppButtonLink
+                href="/studio/new"
+                tone="ghost"
+                className="w-full sm:w-auto h-12 px-8 text-sm font-medium border border-[var(--border)] hover:bg-[var(--surface-2)]"
+              >
+                View Examples
+              </AppButtonLink>
+            </div>
+          </FadeIn>
+
+          <ScaleIn
+            className="w-full lg:w-[540px] xl:w-[600px] shrink-0"
+            delay={0.1}
+          >
+            <div className="relative rounded-2xl border border-[var(--border)] bg-[#0A0A0A] shadow-2xl overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-strong)]/50 to-transparent opacity-50" />
+
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--border)]/50 bg-[#0F0F0F]">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#333333]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#333333]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#333333]" />
+                </div>
+                <div className="ml-auto px-2 py-1 rounded bg-[var(--accent)]/20 border border-[var(--accent)]/30 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-strong)] animate-pulse" />
+                  <span className="text-[9px] uppercase tracking-widest text-[var(--accent-strong)] font-medium">
+                    Streaming
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div className="p-4 rounded-xl border border-[var(--border)] bg-[#141414] transition-colors group-hover:border-[var(--border-strong)]">
+                  <p className="text-[10px] uppercase tracking-widest text-[var(--text-soft)] mb-3 font-semibold">
+                    Context Active
+                  </p>
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded bg-[var(--accent)]/10 border border-[var(--accent)]/20">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="var(--accent-strong)"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                        <polyline points="10 9 9 9 8 9" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white">
+                        Product_Launch_Q3.pdf
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                        Parsed • 14 pages • Key value props
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl border border-[var(--border)] bg-[#141414]">
+                  <p className="text-[10px] uppercase tracking-widest text-[var(--text-soft)] mb-4 font-semibold">
+                    Draft Progression
+                  </p>
+
+                  <div className="space-y-5">
+                    <div className="relative pl-5">
+                      <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-[#333333] border-2 border-[#141414]" />
+                      <div className="absolute left-[3px] top-3.5 bottom-[-16px] w-[2px] bg-[#333333]" />
+                      <p className="text-sm font-display text-white mb-1">
+                        The Opening Hook
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                        Introducing the paradigm shift in AI-native editing
+                        interfaces...
+                      </p>
+                    </div>
+
+                    <div className="relative pl-5">
+                      <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-[var(--accent-strong)] border-2 border-[#141414] shadow-[0_0_10px_var(--accent-strong)]" />
+                      <div className="absolute left-[3px] top-3.5 bottom-[-16px] w-[2px] bg-gradient-to-b from-[var(--accent-strong)] to-transparent opacity-30" />
+                      <p className="text-sm font-display text-white mb-2">
+                        Core Mechanics
+                      </p>
+                      <div className="p-3 rounded border border-dashed border-[var(--accent-strong)]/30 bg-[var(--accent)]/5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <svg
+                            className="animate-spin"
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="var(--accent-strong)"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                          </svg>
+                          <span className="text-[10px] text-[var(--accent-strong)] uppercase tracking-wider">
+                            Resolving Block...
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="h-1.5 w-full bg-[var(--surface-2)] rounded overflow-hidden">
+                            <div className="h-full w-2/3 bg-[var(--text-soft)]/20 animate-pulse" />
+                          </div>
+                          <div className="h-1.5 w-4/5 bg-[var(--surface-2)] rounded overflow-hidden">
+                            <div className="h-full w-1/2 bg-[var(--text-soft)]/20 animate-pulse delay-75" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="relative pl-5 opacity-40">
+                      <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-[#333333] border-2 border-[#141414]" />
+                      <p className="text-sm font-display text-white">
+                        Call to Action
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ScaleIn>
+        </section>
+
+        <section className="py-24 border-t border-[var(--border)]/50">
+          <div className="grid md:grid-cols-3 gap-8 lg:gap-12">
+            {supportPoints.map((point, index) => (
+              <div
+                key={point.title}
+                className="group p-6 rounded-2xl border border-[var(--border)] bg-[#0A0A0A] hover:bg-[#0F0F0F] hover:border-[var(--border-strong)] transition-all"
+              >
+                <div className="w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center mb-6 text-[var(--accent-strong)] font-mono text-sm group-hover:scale-110 transition-transform">
+                  0{index + 1}
+                </div>
+                <h3 className="font-display text-xl text-white mb-3">
+                  {point.title}
+                </h3>
+                <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                  {point.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="py-24 border-t border-[var(--border)]/50">
+          <div className="flex flex-col lg:flex-row gap-16">
+            <div className="lg:w-1/3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[var(--border)] bg-[#0A0A0A] mb-6">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-soft)]">
+                  Architecture
+                </span>
+              </div>
+              <h2 className="font-display text-4xl lg:text-5xl leading-[1.1] text-white mb-6">
+                Engineered for <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--accent-strong)] to-[#8af6c5]">
+                  flow.
+                </span>
+              </h2>
+              <p className="text-[var(--text-muted)] text-base leading-relaxed">
+                A seamless pipeline from unstructured thoughts to published
+                assets, without the copy-paste friction.
               </p>
-              <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-                <AppButtonLink href="/studio/new" tone="primary" size="3">
-                  Open Studio
-                </AppButtonLink>
-                <AppButtonLink href="/studio/new" tone="secondary" size="3">
-                  Generate First Draft
-                </AppButtonLink>
-              </div>
-            </motion.div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, scale: 0.97, y: 24 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ duration: 0.95, ease: [0.22, 1, 0.36, 1], delay: 0.12 }}
-              className="min-w-0"
-            >
-              <div className="landing-showcase rounded-[32px] p-4 md:p-5">
-                <div className="grid min-h-[520px] gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
-                  <div className="rounded-[24px] border border-[var(--border)] bg-[rgba(8,12,10,0.64)] p-4">
-                    <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--text-soft)]">Current session</p>
-                    <div className="mt-6 space-y-5">
-                      <div>
-                        <p className="font-display text-3xl">Blog Post</p>
-                        <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
-                          Outline generated, three sections in progress, editor unlocked.
-                        </p>
-                      </div>
-                      <div className="app-section-divider pt-5">
-                        <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--text-soft)]">Context</p>
-                        <p className="mt-3 text-sm text-white">Q2 product launch brief.pdf</p>
-                        <p className="mt-1 text-sm text-[var(--text-muted)]">
-                          Audience notes, value props, launch timeline
-                        </p>
-                      </div>
-                      <div className="app-section-divider pt-5">
-                        <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--text-soft)]">State</p>
-                        <p className="mt-3 text-sm text-white">2 / 4 blocks ready</p>
-                        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: "58%" }}
-                            transition={{ duration: 1.1, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                            className="h-full rounded-full bg-[var(--accent-strong)]"
-                          />
-                        </div>
-                      </div>
-                    </div>
+            <div className="lg:w-2/3 grid sm:grid-cols-2 gap-6">
+              {workflow.map((step, index) => (
+                <div
+                  key={step.title}
+                  className="p-6 rounded-2xl border border-[var(--border)] bg-[#0A0A0A] flex flex-col"
+                >
+                  <div className="text-[var(--text-soft)] font-mono text-xs mb-8">
+                    STEP {index + 1}
                   </div>
-
-                  <div className="rounded-[24px] border border-[var(--border)] bg-[rgba(8,12,10,0.48)] p-5">
-                    <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
-                      <div className="min-w-0">
-                        <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--text-soft)]">Draft</p>
-                        <p className="font-display mt-2 text-4xl leading-[0.92]">Launch Narrative</p>
-                      </div>
-                      <span className="rounded-full border border-[rgba(66,230,164,0.26)] bg-[rgba(19,101,74,0.18)] px-3 py-1 text-xs text-[var(--accent-strong)]">
-                        Streaming
-                      </span>
-                    </div>
-                    <div className="mt-5 space-y-4">
-                      <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(14,20,18,0.82)] p-5">
-                        <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--text-soft)]">Hero section</p>
-                        <p className="font-display mt-3 text-4xl leading-[0.94]">
-                          Launch copy that feels composed, not merely generated.
-                        </p>
-                        <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--text-muted)]">
-                          Start from a brief, keep the structure visible, and let each block resolve only when it is valid enough to belong in the document.
-                        </p>
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="rounded-[22px] border border-[var(--border)] bg-[rgba(14,20,18,0.72)] p-5">
-                          <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--text-soft)]">Selection rewrite</p>
-                          <p className="mt-3 text-sm leading-7 text-[var(--text-muted)]">
-                            Refine tone, shorten sections, or sharpen a single paragraph without restarting the whole draft.
-                          </p>
-                        </div>
-                        <div className="rounded-[22px] border border-dashed border-[rgba(66,230,164,0.35)] bg-[rgba(19,101,74,0.08)] p-5">
-                          <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--accent-strong)]">Body section</p>
-                          <p className="mt-3 text-sm leading-7 text-[var(--text-soft)]">Generating structured block...</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <h3 className="font-display text-2xl text-white mb-3 mt-auto">
+                    {step.title}
+                  </h3>
+                  <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                    {step.description}
+                  </p>
                 </div>
+              ))}
+              <div className="p-6 rounded-2xl border border-dashed border-[var(--accent-strong)]/30 bg-[var(--accent)]/5 flex flex-col justify-center items-center text-center group cursor-pointer hover:bg-[var(--accent)]/10 transition-colors">
+                <div className="w-12 h-12 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--accent-strong)"
+                    strokeWidth="2"
+                  >
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </div>
+                <h3 className="font-display text-lg text-white mb-1">
+                  Experience the Studio
+                </h3>
+                <p className="text-xs text-[var(--accent-strong)] uppercase tracking-wider">
+                  Start building
+                </p>
               </div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      <div className="mx-auto max-w-7xl">
-        <section className="app-section-divider py-10">
-          <div className="landing-kpi-row">
-            {supportPoints.map((point) => (
-              <div key={point.value} className="landing-kpi">
-                <p className="font-display text-3xl">{point.value}</p>
-                <p className="mt-3 max-w-sm text-sm leading-7 text-[var(--text-muted)]">{point.body}</p>
-              </div>
-            ))}
+            </div>
           </div>
         </section>
 
-        <section className="grid gap-12 py-20 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
-          <div>
-            <p className="mb-4 text-xs uppercase tracking-[0.3em] text-[var(--text-soft)]">Workflow</p>
-            <h2 className="font-display max-w-sm text-5xl leading-[0.92]">
-              A calmer path from prompt to publishable structure.
-            </h2>
-          </div>
-          <div className="studio-list">
-            {workflow.map((step, index) => (
-              <div key={step.label} className="studio-list-row">
-                <div className="studio-list-copy">
-                  <p className="font-display text-3xl">{step.label}</p>
-                  <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--text-muted)]">{step.body}</p>
-                </div>
-                <p className="text-xs uppercase tracking-[0.28em] text-[var(--text-soft)]">{`0${index + 1}`}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+        <section className="py-24 mb-12">
+          <div className="relative rounded-3xl border border-[var(--border)] bg-gradient-to-b from-[#0A0A0A] to-[#050505] p-12 text-center overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-2xl h-[1px] bg-gradient-to-r from-transparent via-[var(--accent-strong)] to-transparent opacity-50" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-[var(--accent-strong)]/10 blur-[100px] pointer-events-none rounded-full" />
 
-        <section className="app-section-divider flex flex-col gap-8 py-14 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-2xl">
-            <p className="mb-4 text-xs uppercase tracking-[0.3em] text-[var(--text-soft)]">Start now</p>
-            <h2 className="font-display text-5xl leading-[0.92]">
-              Open the studio and turn the first prompt into a working draft.
+            <h2 className="relative font-display text-4xl sm:text-5xl lg:text-6xl text-white mb-6 tracking-tight">
+              Ready to redefine your draft?
             </h2>
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <AppButtonLink href="/studio/new" tone="primary" size="3">
-              Start in Studio
-            </AppButtonLink>
-            <AppButtonLink href="/studio/new" tone="ghost" size="3">
-              Create a blank draft
-            </AppButtonLink>
+            <p className="relative text-lg text-[var(--text-muted)] max-w-xl mx-auto mb-10">
+              Skip the blank page. Let the context drive the structure while you
+              shape the narrative in real-time.
+            </p>
+            <div className="relative flex flex-col sm:flex-row items-center justify-center gap-4">
+              <AppButtonLink
+                href="/studio/new"
+                tone="primary"
+                className="h-12 px-8 text-sm font-medium shadow-[0_0_20px_rgba(47,223,160,0.2)]"
+              >
+                Initialize Workspace
+              </AppButtonLink>
+            </div>
           </div>
         </section>
       </div>

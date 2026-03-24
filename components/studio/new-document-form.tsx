@@ -15,10 +15,12 @@ export function NewDocumentForm() {
   const [contentType, setContentType] = useState("blog_post");
   const [title, setTitle] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
+    setErrorMessage("");
 
     try {
       const response = await fetch("/api/documents", {
@@ -32,7 +34,13 @@ export function NewDocumentForm() {
         })
       });
 
-      const payload = await response.json();
+      const payload = (await response.json()) as { document?: { id?: string }; error?: string };
+
+      if (!response.ok || !payload.document?.id) {
+        setErrorMessage(payload.error ?? "Unable to create the document right now.");
+        return;
+      }
+
       router.push(`/studio/${payload.document.id}`);
     } finally {
       setSubmitting(false);
@@ -40,10 +48,10 @@ export function NewDocumentForm() {
   }
 
   return (
-    <main className="min-h-screen px-6 py-8 md:px-12">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl flex-col">
+    <main className="page-shell py-8">
+      <div className="page-frame flex min-h-[calc(100vh-4rem)] flex-col">
         <header className="flex items-center justify-between py-4">
-          <AppNavLink href="/" className="brand-mark text-[2.65rem] text-[var(--text)]">
+          <AppNavLink href="/" className="brand-mark text-[3.8rem] text-white md:text-[4.4rem]">
             mivo
           </AppNavLink>
           <AppNavLink href="/studio/new">Studio</AppNavLink>
@@ -92,6 +100,7 @@ export function NewDocumentForm() {
                 </AppButton>
                 <AppNavLink href="/">Back home</AppNavLink>
               </div>
+              {errorMessage ? <p className="mt-4 text-sm text-[rgb(255,179,173)]">{errorMessage}</p> : null}
             </form>
           </AppPanel>
         </div>

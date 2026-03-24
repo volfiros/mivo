@@ -73,6 +73,14 @@ export function AppNavLink({
   className?: string;
   children: ReactNode;
 }) {
+  if (className?.includes("brand-mark")) {
+    return (
+      <NextLink href={href} className={clsx("app-nav-link", className)}>
+        {children}
+      </NextLink>
+    );
+  }
+
   return (
     <RadixLink asChild className={clsx("app-nav-link", className)}>
       <NextLink href={href}>{children}</NextLink>
@@ -126,7 +134,7 @@ export function AppSelect({
       <Select.Trigger
         placeholder={placeholder}
         variant="surface"
-        radius="none"
+        radius="medium"
         className={clsx("app-select-trigger w-full", className)}
       />
       <Select.Content variant="solid" color="gray" className="app-select-content">
@@ -161,7 +169,7 @@ export function StatusBadge({
             : "status-neutral";
 
   return (
-    <Badge radius="full" variant="surface" className={clsx("app-badge", tone, className)}>
+    <Badge radius="medium" variant="surface" className={clsx("app-badge", tone, className)}>
       {label ?? status.replace(/_/g, " ")}
     </Badge>
   );

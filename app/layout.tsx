@@ -1,18 +1,25 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Inter } from "next/font/google";
+import { Cormorant_Garamond, Manrope, Newsreader } from "next/font/google";
 import { Theme } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import "./globals.css";
 
-const inter = Inter({
+const manrope = Manrope({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-ui",
+  display: "swap"
+});
+
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["400", "500", "600"],
   display: "swap"
 });
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
-  variable: "--font-cormorant",
+  variable: "--font-brand",
   weight: ["400", "500", "600"],
   display: "swap"
 });
@@ -25,8 +32,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning className={`${inter.variable} ${cormorant.variable} grain`}>
-        <Theme appearance="dark" accentColor="jade" grayColor="sage" radius="none" scaling="100%">
+      <body suppressHydrationWarning className={`${manrope.variable} ${newsreader.variable} ${cormorant.variable} grain`}>
+        <Theme appearance="dark" accentColor="jade" grayColor="sage" radius="medium" scaling="100%">
           {children}
         </Theme>
       </body>
