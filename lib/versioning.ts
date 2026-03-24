@@ -1,6 +1,8 @@
 import { compare } from "fast-json-patch";
 import type { JSONContent } from "@tiptap/core";
 
+export const VERSION_CHECKPOINT_INTERVAL = 5;
+
 export type StoredVersion = {
   id: string;
   versionNumber: number;
@@ -17,9 +19,14 @@ export function createVersionRecord(params: {
   nextDocument: JSONContent;
 }) {
   const nextVersionNumber = params.currentVersionNumber + 1;
-  const checkpointVersionNumber = Math.floor((nextVersionNumber - 1) / 10) * 10 || 1;
+  const checkpointVersionNumber =
+    Math.floor(nextVersionNumber / VERSION_CHECKPOINT_INTERVAL) *
+    VERSION_CHECKPOINT_INTERVAL;
 
-  if (nextVersionNumber === 1 || nextVersionNumber % 10 === 0 || !params.checkpointBaseVersion?.fullSnapshotJson) {
+  if (
+    nextVersionNumber % VERSION_CHECKPOINT_INTERVAL === 0 ||
+    !params.checkpointBaseVersion?.fullSnapshotJson
+  ) {
     return {
       versionNumber: nextVersionNumber,
       checkpointVersionNumber: nextVersionNumber,

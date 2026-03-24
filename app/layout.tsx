@@ -1,25 +1,8 @@
 import type { Metadata } from "next";
-import {
-  Cormorant_Garamond,
-  Geist,
-  Geist_Mono,
-  Newsreader,
-} from "next/font/google";
+import { Cormorant_Garamond, Newsreader } from "next/font/google";
 import { Theme } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import "./globals.css";
-
-const geist = Geist({
-  subsets: ["latin"],
-  variable: "--font-ui",
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  display: "swap",
-});
 
 const newsreader = Newsreader({
   subsets: ["latin"],
@@ -47,7 +30,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${geist.variable} ${geistMono.variable} ${newsreader.variable} ${cormorant.variable} grain`}
+        className={`${newsreader.variable} ${cormorant.variable} grain`}
       >
         <Theme
           appearance="dark"

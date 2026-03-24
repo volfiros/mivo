@@ -107,7 +107,20 @@ function useAutosave(editor: Editor | null, documentId: string, title: string) {
 }
 
 function formatDate(value: string | Date) {
-  return new Date(value).toLocaleString();
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`;
 }
 
 export function Workspace({ document }: { document: DocumentRecord }) {
@@ -357,8 +370,8 @@ export function Workspace({ document }: { document: DocumentRecord }) {
   }
 
   return (
-    <div className="editor-shell min-h-screen relative">
-      <aside className="studio-rail border-r border-[var(--border)]/50 px-5 py-6 md:px-6 bg-[#0A0A0A]/80 backdrop-blur-xl relative z-10">
+    <div className="editor-shell h-screen overflow-hidden relative">
+      <aside className="studio-rail border-r border-[var(--border)]/50 px-5 py-6 md:px-6 bg-[#0A0A0A]/80 backdrop-blur-xl relative z-10 h-full overflow-y-auto pb-10">
         <div className="space-y-5">
           <div className="border-b border-[var(--border)]/50 pb-5">
             <p className="mb-3 text-[10px] uppercase tracking-[0.2em] font-semibold text-[var(--text-soft)]">
@@ -452,9 +465,9 @@ export function Workspace({ document }: { document: DocumentRecord }) {
         </div>
       </aside>
 
-      <section className="px-5 py-6 md:px-8 relative z-10">
-        <div className="mx-auto max-w-5xl space-y-5">
-          <div className="flex flex-col gap-5 pb-2 lg:flex-row lg:items-start lg:justify-between">
+      <section className="px-5 py-6 md:px-8 relative z-10 h-full flex flex-col min-h-0">
+        <div className="mx-auto w-full max-w-5xl flex-1 flex flex-col min-h-0 space-y-5">
+          <div className="flex flex-col gap-5 pb-2 lg:flex-row lg:items-start lg:justify-between shrink-0">
             <div className="min-w-0 flex-1">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-md mb-4">
                 <div className="w-2 h-2 rounded-full bg-[var(--accent-strong)] animate-pulse shadow-[0_0_8px_var(--accent-strong)]" />
@@ -490,11 +503,11 @@ export function Workspace({ document }: { document: DocumentRecord }) {
             </div>
           </div>
 
-          <div className="relative rounded-2xl border border-[var(--border)] bg-[#0A0A0A] shadow-2xl overflow-hidden group min-h-[760px] flex flex-col">
+          <div className="relative rounded-2xl border border-[var(--border)] bg-[#0A0A0A] shadow-2xl overflow-hidden group flex-1 flex flex-col min-h-0">
             <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-transparent pointer-events-none" />
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-strong)]/50 to-transparent opacity-50" />
 
-            <div className="relative flex items-center gap-2 px-4 py-3 border-b border-[var(--border)]/50 bg-[#0F0F0F] z-10">
+            <div className="relative flex items-center gap-2 px-4 py-3 border-b border-[var(--border)]/50 bg-[#0F0F0F] z-10 shrink-0">
               <div className="flex gap-1.5 opacity-50 group-hover:opacity-100 transition-opacity">
                 <div className="w-2.5 h-2.5 rounded-full bg-[#333333]" />
                 <div className="w-2.5 h-2.5 rounded-full bg-[#333333]" />
@@ -508,14 +521,14 @@ export function Workspace({ document }: { document: DocumentRecord }) {
               </div>
             </div>
 
-            <div className="relative p-6 md:p-10 flex-1 prose-editor text-white/90 z-10">
-              <EditorContent editor={editor} />
+            <div className="relative p-6 md:p-10 flex-1 overflow-y-auto prose-editor text-white/90 z-10">
+              <EditorContent editor={editor} className="min-h-full" />
             </div>
           </div>
         </div>
       </section>
 
-      <aside className="studio-rail border-l border-[var(--border)]/50 px-5 py-6 md:px-6 bg-[#0A0A0A]/80 backdrop-blur-xl relative z-10">
+      <aside className="studio-rail border-l border-[var(--border)]/50 px-5 py-6 md:px-6 bg-[#0A0A0A]/80 backdrop-blur-xl relative z-10 h-full overflow-y-auto pb-10">
         <div className="space-y-6">
           <div>
             <p className="mb-4 text-[10px] uppercase tracking-[0.2em] font-semibold text-[var(--text-soft)]">

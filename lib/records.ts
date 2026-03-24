@@ -11,7 +11,11 @@ import {
   generationJobs
 } from "@/lib/db/schema";
 import { createEmptyDocument } from "@/lib/schema/editor";
-import { createVersionRecord, type StoredVersion } from "@/lib/versioning";
+import {
+  createVersionRecord,
+  type StoredVersion,
+  VERSION_CHECKPOINT_INTERVAL
+} from "@/lib/versioning";
 
 export async function createDocument(params: { contentType: string; title: string }) {
   await ensureDatabase();
@@ -36,8 +40,8 @@ export async function createDocument(params: { contentType: string; title: strin
   await db.insert(documentVersions).values({
     id: versionId,
     documentId: id,
-    versionNumber: 1,
-    checkpointVersionNumber: 1,
+    versionNumber: 0,
+    checkpointVersionNumber: 0,
     storageMode: "snapshot",
     baseVersionId: null,
     fullSnapshotJson: initialContent,
@@ -147,7 +151,9 @@ async function findCheckpointBase(documentId: string, currentVersionNumber: numb
   await ensureDatabase();
   const db = getDb();
 
-  const checkpointNumber = Math.floor(currentVersionNumber / 10) * 10 || 1;
+  const checkpointNumber =
+    Math.floor(currentVersionNumber / VERSION_CHECKPOINT_INTERVAL) *
+    VERSION_CHECKPOINT_INTERVAL;
   const [version] = await db
     .select()
     .from(documentVersions)
@@ -158,7 +164,7 @@ async function findCheckpointBase(documentId: string, currentVersionNumber: numb
     const [first] = await db
       .select()
       .from(documentVersions)
-      .where(and(eq(documentVersions.documentId, documentId), eq(documentVersions.versionNumber, 1)))
+      .where(and(eq(documentVersions.documentId, documentId), eq(documentVersions.versionNumber, 0)))
       .limit(1);
 
     return first

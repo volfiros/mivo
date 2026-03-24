@@ -10,12 +10,34 @@ const envSchema = z.object({
 
 const parsed = envSchema.parse(process.env);
 
+function normalizeDatabaseUrl(databaseUrl: string) {
+  try {
+    const value = new URL(databaseUrl);
+    const sslMode = value.searchParams.get("sslmode");
+    const useLibpqCompat = value.searchParams.get("uselibpqcompat");
+
+    if (
+      sslMode &&
+      ["prefer", "require", "verify-ca"].includes(sslMode) &&
+      !useLibpqCompat
+    ) {
+      value.searchParams.set("sslmode", "verify-full");
+    }
+
+    return value.toString();
+  } catch {
+    return databaseUrl;
+  }
+}
+
 export const config = {
   openAiApiKey: parsed.OPENAI_API_KEY ?? "",
   defaultModel: parsed.OPENAI_MODEL_DEFAULT,
   complexModel: parsed.OPENAI_MODEL_COMPLEX,
   embeddingModel: parsed.OPENAI_EMBEDDING_MODEL,
-  databaseUrl: parsed.DATABASE_URL ?? ""
+  databaseUrl: parsed.DATABASE_URL
+    ? normalizeDatabaseUrl(parsed.DATABASE_URL)
+    : ""
 };
 
 export function assertServerConfig() {
