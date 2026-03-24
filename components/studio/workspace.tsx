@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
+import type { AuthenticatedUserSummary } from "@/lib/auth-types";
 import { editorExtensions } from "@/lib/editor/extensions";
+import { AccountMenu } from "@/components/ui/account-menu";
 import {
   insertPlaceholderNodes,
   replacePlaceholderWithNodes,
@@ -29,6 +32,14 @@ type AttachmentRecord = {
   filename: string;
   mimeType: string;
   createdAt: string | Date;
+};
+
+type DraftHistoryItem = {
+  id: string;
+  title: string;
+  contentType: string;
+  status: string;
+  updatedAt: string | Date;
 };
 
 type DocumentRecord = {
@@ -121,7 +132,15 @@ function formatDate(value: string | Date) {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`;
 }
 
-export function Workspace({ document }: { document: DocumentRecord }) {
+export function Workspace({
+  document,
+  draftHistory,
+  user,
+}: {
+  document: DocumentRecord;
+  draftHistory: DraftHistoryItem[];
+  user: AuthenticatedUserSummary;
+}) {
   const router = useRouter();
   const streamRef = useRef<EventSource | null>(null);
   const [title, setTitle] = useState(document.title);
@@ -193,6 +212,15 @@ export function Workspace({ document }: { document: DocumentRecord }) {
     ([, status]) => status === "completed",
   ).length;
 
+  function pushRoute(target: string) {
+    router.push(target as Route);
+  }
+
+  function closeActiveStream() {
+    streamRef.current?.close();
+    streamRef.current = null;
+  }
+
   async function handleGenerate() {
     const response = await fetch("/api/generations", {
       method: "POST",
@@ -215,7 +243,7 @@ export function Workspace({ document }: { document: DocumentRecord }) {
   }
 
   function subscribeToStream(nextJobId: string) {
-    streamRef.current?.close();
+    closeActiveStream();
 
     const source = new EventSource(`/api/generations/${nextJobId}/stream`);
     streamRef.current = source;
@@ -296,15 +324,13 @@ export function Workspace({ document }: { document: DocumentRecord }) {
 
       if (parsed.type === "generation.completed") {
         setOverallStatus("ready");
-        source.close();
-        streamRef.current = null;
+        closeActiveStream();
         router.refresh();
       }
 
       if (parsed.type === "generation.cancelled") {
         setOverallStatus("cancelled");
-        source.close();
-        streamRef.current = null;
+        closeActiveStream();
       }
     };
   }
@@ -319,8 +345,7 @@ export function Workspace({ document }: { document: DocumentRecord }) {
     });
 
     setOverallStatus("cancelled");
-    streamRef.current?.close();
-    streamRef.current = null;
+    closeActiveStream();
   }
 
   function handleNavigation(target: string) {
@@ -333,11 +358,11 @@ export function Workspace({ document }: { document: DocumentRecord }) {
         onConfirm: async () => {
           setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
           await handleCancel();
-          router.push(target);
+          pushRoute(target);
         },
       });
     } else {
-      router.push(target);
+      pushRoute(target);
     }
   }
 
@@ -447,6 +472,72 @@ export function Workspace({ document }: { document: DocumentRecord }) {
           </div>
 
           <div>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-1.5 h-1.5 rounded-full bg-[var(--text-muted)]" />
+              <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-[var(--text-soft)]">
+                Draft Archive
+              </p>
+            </div>
+            <AppScrollArea className="max-h-[280px] pr-2">
+              {draftHistory.length ? (
+                <div className="space-y-2">
+                  {draftHistory.map((draft) => {
+                    const isActive = draft.id === document.id;
+                    return (
+                      <button
+                        key={draft.id}
+                        type="button"
+                        onClick={() => handleNavigation(`/studio/${draft.id}`)}
+                        className={`group relative w-full rounded-xl border p-3.5 text-left transition-all duration-300 overflow-hidden ${
+                          isActive
+                            ? "border-[var(--accent-strong)]/40 bg-[var(--accent)]/10 shadow-[0_0_15px_rgba(47,223,160,0.05)]"
+                            : "border-[var(--border)]/50 bg-[#0A0A0A] hover:bg-[#141414] hover:border-[var(--border-strong)]"
+                        }`}
+                      >
+                        {isActive && (
+                          <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[var(--accent-strong)] to-[var(--accent)]" />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent -translate-x-[100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
+
+                        <div
+                          className={`flex items-center justify-between gap-3 ${isActive ? "pl-2" : ""}`}
+                        >
+                          <p
+                            className={`truncate text-sm font-semibold tracking-tight transition-colors ${isActive ? "text-white" : "text-[var(--text-soft)] group-hover:text-white"}`}
+                          >
+                            {draft.title}
+                          </p>
+                          <StatusBadge
+                            status={draft.status}
+                            className="text-[9px] px-1.5 py-0.5 shrink-0 shadow-sm"
+                          />
+                        </div>
+                        <div
+                          className={`mt-2 flex items-center gap-2 ${isActive ? "pl-2" : ""}`}
+                        >
+                          <span className="px-1.5 py-0.5 rounded border border-[var(--border)] bg-[#141414] text-[9px] font-mono uppercase tracking-widest text-[var(--text-muted)]">
+                            {draft.contentType.replace("_", " ")}
+                          </span>
+                          <p className="text-[9px] font-mono uppercase tracking-widest text-[var(--text-muted)]">
+                            {formatDate(draft.updatedAt).split(" ")[0]}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-6 rounded-xl border border-dashed border-[var(--border)]/50 bg-[#0A0A0A] text-center relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--accent-strong)_0%,transparent_100%)] opacity-[0.03] group-hover:opacity-[0.06] transition-opacity duration-500" />
+                  <p className="text-xs font-mono uppercase tracking-widest text-[var(--text-muted)]">
+                    No Archive Records
+                  </p>
+                </div>
+              )}
+            </AppScrollArea>
+          </div>
+
+          <div className="border-t border-[var(--border)]/50 pt-5">
             <p className="mb-4 text-[10px] uppercase tracking-[0.2em] font-semibold text-[var(--text-soft)]">
               Versions
             </p>
@@ -540,7 +631,7 @@ export function Workspace({ document }: { document: DocumentRecord }) {
                 className="studio-title-field text-white"
               />
             </div>
-            <div className="flex flex-wrap gap-3 mt-4 lg:mt-0">
+            <div className="flex flex-wrap gap-3 mt-4 lg:mt-0 items-start">
               <AppButton
                 type="button"
                 onClick={() => handleNavigation(`/preview/${document.id}`)}
@@ -559,6 +650,10 @@ export function Workspace({ document }: { document: DocumentRecord }) {
               >
                 New
               </AppButton>
+              <AccountMenu
+                user={user}
+                disabled={overallStatus === "generating"}
+              />
             </div>
           </div>
 
@@ -730,8 +825,8 @@ export function Workspace({ document }: { document: DocumentRecord }) {
       </aside>
 
       {confirmDialog.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-[#0A0A0A] border border-[var(--border)] rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="motion-fade-in-fast fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="motion-fade-in-fast motion-scale-in-fast bg-[#0A0A0A] border border-[var(--border)] rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-transparent pointer-events-none" />
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-strong)]/50 to-transparent opacity-50" />
 

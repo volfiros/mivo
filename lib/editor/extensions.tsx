@@ -19,7 +19,7 @@ function BlockShell({ selected, children }: { selected: boolean; children: React
       <AppPanel
         className={clsx(
           "p-6 transition",
-          selected ? "border-[rgba(66,230,164,0.55)]! shadow-[0_0_0_1px_rgba(66,230,164,0.15)]" : ""
+          selected ? "!border-[rgba(66,230,164,0.55)] shadow-[0_0_0_1px_rgba(66,230,164,0.15)]" : ""
         )}
       >
         {children}
@@ -210,7 +210,7 @@ function FeatureGridView({ node, updateAttributes, selected }: BlockProps) {
 function PlaceholderView({ node, selected }: Pick<BlockProps, "node" | "selected">) {
   return (
     <NodeViewWrapper className="my-5">
-      <AppPanel className={clsx("placeholder-block pulse-line p-6", selected ? "border-[rgba(66,230,164,0.7)]!" : "")}>
+      <AppPanel className={clsx("placeholder-block pulse-line p-6", selected ? "!border-[rgba(66,230,164,0.7)]" : "")}>
         <p className="mb-2 text-[11px] uppercase tracking-[0.24em] text-[var(--accent-strong)]">{node.attrs.label}</p>
         <p className="text-sm text-[var(--text-soft)]">{node.attrs.preview || "Generating structured block..."}</p>
       </AppPanel>

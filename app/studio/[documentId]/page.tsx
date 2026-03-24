@@ -1,6 +1,6 @@
-import { notFound } from "next/navigation";
+import { requireOwnedDocument, requireUser } from "@/lib/auth-helpers";
 import { Workspace } from "@/components/studio/workspace";
-import { getDocument } from "@/lib/records";
+import { listUserDocuments } from "@/lib/records";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +10,11 @@ export default async function StudioDocumentPage({
   params: Promise<{ documentId: string }>;
 }) {
   const { documentId } = await params;
-  const document = await getDocument(documentId);
+  const user = await requireUser(`/studio/${documentId}`);
+  const [document, draftHistory] = await Promise.all([
+    requireOwnedDocument(user.id, documentId),
+    listUserDocuments(user.id)
+  ]);
 
-  if (!document) {
-    notFound();
-  }
-
-  return <Workspace document={document} />;
+  return <Workspace document={document} draftHistory={draftHistory} user={user} />;
 }

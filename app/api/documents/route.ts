@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createRouteErrorResponse } from "@/lib/api-error";
+import { requireRequestUser } from "@/lib/auth-helpers";
 import { createDocument } from "@/lib/records";
 
 const requestSchema = z.object({
@@ -10,8 +11,17 @@ const requestSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const authState = await requireRequestUser(request);
+
+    if (authState.response) {
+      return authState.response;
+    }
+
     const body = requestSchema.parse(await request.json());
-    const document = await createDocument(body);
+    const document = await createDocument({
+      ownerUserId: authState.user.id,
+      ...body
+    });
 
     if (!document) {
       return NextResponse.json({ error: "Document was created but could not be loaded" }, { status: 500 });

@@ -1,16 +1,23 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createRouteErrorResponse } from "@/lib/api-error";
-import { getDocument, saveDocumentContent } from "@/lib/records";
+import { requireRequestUser } from "@/lib/auth-helpers";
+import { getOwnedDocument, saveDocumentContent } from "@/lib/records";
 
 const patchSchema = z.object({
   title: z.string().min(1),
   content: z.any()
 });
 
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authState = await requireRequestUser(request);
+
+  if (authState.response) {
+    return authState.response;
+  }
+
   const { id } = await params;
-  const document = await getDocument(id);
+  const document = await getOwnedDocument(authState.user.id, id);
 
   if (!document) {
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
@@ -21,9 +28,16 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const authState = await requireRequestUser(request);
+
+    if (authState.response) {
+      return authState.response;
+    }
+
     const { id } = await params;
     const body = patchSchema.parse(await request.json());
     const versionId = await saveDocumentContent({
+      userId: authState.user.id,
       documentId: id,
       content: body.content,
       title: body.title,

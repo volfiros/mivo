@@ -1,6 +1,5 @@
-import { notFound } from "next/navigation";
+import { requireOwnedDocument, requireUser } from "@/lib/auth-helpers";
 import { DocumentPreview } from "@/components/editor/document-preview";
-import { getDocument } from "@/lib/records";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +9,8 @@ export default async function PreviewPage({
   params: Promise<{ documentId: string }>;
 }) {
   const { documentId } = await params;
-  const document = await getDocument(documentId);
-
-  if (!document) {
-    notFound();
-  }
+  const user = await requireUser(`/preview/${documentId}`);
+  const document = await requireOwnedDocument(user.id, documentId);
 
   return <DocumentPreview content={document.currentContentJson} documentId={document.id} />;
 }

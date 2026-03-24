@@ -1,5 +1,7 @@
 import type { Route } from "next";
 import NextLink from "next/link";
+import type { AuthenticatedUserSummary } from "@/lib/auth-types";
+import { AccountMenu } from "@/components/ui/account-menu";
 import { AppButtonLink, AppNavLink } from "@/components/ui/primitives";
 import { FadeIn, ScaleIn } from "@/components/ui/landing-animations";
 
@@ -43,14 +45,20 @@ const workflow = [
 ];
 
 const workflowAction = {
-  href: "/studio/new" as Route,
+  href: "/studio",
   title: "Open the Studio",
   description:
     "Launch a new workspace and start building the draft immediately.",
   label: "Launch workspace",
 };
 
-export function Landing() {
+export function Landing({
+  user,
+  launchHref
+}: {
+  user: AuthenticatedUserSummary | null;
+  launchHref: string;
+}) {
   return (
     <main className="min-h-screen text-white selection:bg-[var(--accent-strong)]/20 overflow-hidden font-sans">
       <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
@@ -62,13 +70,17 @@ export function Landing() {
             Mivo
           </AppNavLink>
           <div className="flex items-center">
-            <AppButtonLink
-              href="/studio/new"
-              tone="primary"
-              className="h-9 px-4 text-xs tracking-wide"
-            >
-              Launch App
-            </AppButtonLink>
+            {user ? (
+              <AccountMenu user={user} />
+            ) : (
+              <AppButtonLink
+                href={launchHref}
+                tone="primary"
+                className="h-9 px-4 text-xs tracking-wide"
+              >
+                Launch App
+              </AppButtonLink>
+            )}
           </div>
         </header>
 
@@ -95,14 +107,14 @@ export function Landing() {
 
             <div className="flex flex-col sm:flex-row items-center gap-4">
               <AppButtonLink
-                href="/studio/new"
+                href={launchHref}
                 tone="primary"
                 className="w-full sm:w-auto h-12 px-8 text-sm font-medium shadow-[0_0_20px_rgba(47,223,160,0.2)] hover:shadow-[0_0_30px_rgba(47,223,160,0.3)] transition-all"
               >
                 Start Generating
               </AppButtonLink>
               <AppButtonLink
-                href="/studio/new"
+                href={launchHref}
                 tone="ghost"
                 className="w-full sm:w-auto h-12 px-8 text-sm font-medium border border-[var(--border)] hover:bg-[var(--surface-2)]"
               >
@@ -294,7 +306,7 @@ export function Landing() {
                 </div>
               ))}
               <NextLink
-                href={workflowAction.href}
+                href={workflowAction.href as Route}
                 className="group relative flex flex-col p-6 rounded-2xl border border-[var(--border)] bg-[#0A0A0A] overflow-hidden transition-all duration-300 hover:border-[var(--accent-strong)]/50 hover:bg-[#0F0F0F]"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -348,7 +360,7 @@ export function Landing() {
             </p>
             <div className="relative flex flex-col sm:flex-row items-center justify-center gap-4">
               <AppButtonLink
-                href="/studio/new"
+                href={launchHref}
                 tone="primary"
                 className="h-12 px-8 text-sm font-medium shadow-[0_0_20px_rgba(47,223,160,0.2)]"
               >

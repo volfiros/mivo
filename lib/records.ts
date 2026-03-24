@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, max } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, max } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { JSONContent } from "@tiptap/core";
 import { ensureDatabase, getDb } from "@/lib/db";
@@ -17,7 +17,46 @@ import {
   VERSION_CHECKPOINT_INTERVAL
 } from "@/lib/versioning";
 
-export async function createDocument(params: { contentType: string; title: string }) {
+type DocumentVersionRecord = typeof documentVersions.$inferSelect;
+type AttachmentRecord = typeof attachments.$inferSelect;
+type GenerationJobRecord = typeof generationJobs.$inferSelect;
+
+export type UserDocumentSummary = Pick<
+  typeof documents.$inferSelect,
+  "id" | "ownerUserId" | "contentType" | "title" | "status" | "createdAt" | "updatedAt"
+>;
+
+export type OwnedDocumentRecord = Omit<typeof documents.$inferSelect, "currentContentJson"> & {
+  currentContentJson: JSONContent;
+  versions: DocumentVersionRecord[];
+  attachments: AttachmentRecord[];
+};
+
+async function getOwnedDocumentSummary(userId: string, documentId: string) {
+  await ensureDatabase();
+  const db = getDb();
+  const [document] = await db
+    .select({
+      id: documents.id,
+      ownerUserId: documents.ownerUserId,
+      contentType: documents.contentType,
+      title: documents.title,
+      status: documents.status,
+      createdAt: documents.createdAt,
+      updatedAt: documents.updatedAt
+    })
+    .from(documents)
+    .where(and(eq(documents.id, documentId), eq(documents.ownerUserId, userId)))
+    .limit(1);
+
+  return document ?? null;
+}
+
+export async function createDocument(params: {
+  ownerUserId: string;
+  contentType: string;
+  title: string;
+}) {
   await ensureDatabase();
   const db = getDb();
   const id = nanoid();
@@ -26,6 +65,7 @@ export async function createDocument(params: { contentType: string; title: strin
 
   await db.insert(documents).values({
     id,
+    ownerUserId: params.ownerUserId,
     contentType: params.contentType,
     title: params.title,
     status: "draft",
@@ -60,13 +100,17 @@ export async function createDocument(params: { contentType: string; title: strin
     })
     .where(eq(documents.id, id));
 
-  return getDocument(id);
+  return getOwnedDocument(params.ownerUserId, id);
 }
 
-export async function getDocument(id: string) {
+export async function getOwnedDocument(userId: string, id: string): Promise<OwnedDocumentRecord | null> {
   await ensureDatabase();
   const db = getDb();
-  const [document] = await db.select().from(documents).where(eq(documents.id, id)).limit(1);
+  const [document] = await db
+    .select()
+    .from(documents)
+    .where(and(eq(documents.id, id), eq(documents.ownerUserId, userId)))
+    .limit(1);
 
   if (!document) {
     return null;
@@ -78,7 +122,11 @@ export async function getDocument(id: string) {
     .where(eq(documentVersions.documentId, id))
     .orderBy(desc(documentVersions.versionNumber));
 
-  const uploads = await db.select().from(attachments).where(eq(attachments.documentId, id)).orderBy(desc(attachments.createdAt));
+  const uploads = await db
+    .select()
+    .from(attachments)
+    .where(eq(attachments.documentId, id))
+    .orderBy(desc(attachments.createdAt));
 
   return {
     ...document,
@@ -88,13 +136,32 @@ export async function getDocument(id: string) {
   };
 }
 
-export async function listRecentDocuments() {
+export async function listUserDocuments(userId: string, limit = 12): Promise<UserDocumentSummary[]> {
   await ensureDatabase();
   const db = getDb();
-  return db.select().from(documents).orderBy(desc(documents.updatedAt)).limit(12);
+  return db
+    .select({
+      id: documents.id,
+      ownerUserId: documents.ownerUserId,
+      contentType: documents.contentType,
+      title: documents.title,
+      status: documents.status,
+      createdAt: documents.createdAt,
+      updatedAt: documents.updatedAt
+    })
+    .from(documents)
+    .where(eq(documents.ownerUserId, userId))
+    .orderBy(desc(documents.updatedAt))
+    .limit(limit);
+}
+
+export async function getLatestUserDocument(userId: string) {
+  const [document] = await listUserDocuments(userId, 1);
+  return document ?? null;
 }
 
 export async function saveDocumentContent(params: {
+  userId: string;
   documentId: string;
   content: JSONContent;
   title?: string;
@@ -104,7 +171,7 @@ export async function saveDocumentContent(params: {
 }) {
   await ensureDatabase();
   const db = getDb();
-  const current = await getDocument(params.documentId);
+  const current = await getOwnedDocument(params.userId, params.documentId);
 
   if (!current) {
     throw new Error("Document not found");
@@ -142,7 +209,7 @@ export async function saveDocumentContent(params: {
       currentVersionId: versionId,
       updatedAt: new Date()
     })
-    .where(eq(documents.id, params.documentId));
+    .where(and(eq(documents.id, params.documentId), eq(documents.ownerUserId, params.userId)));
 
   return versionId;
 }
@@ -185,9 +252,20 @@ async function findCheckpointBase(documentId: string, currentVersionNumber: numb
   };
 }
 
-export async function createGenerationJob(params: { documentId: string; mode: string; requestPayload: unknown }) {
+export async function createGenerationJob(params: {
+  userId: string;
+  documentId: string;
+  mode: string;
+  requestPayload: unknown;
+}) {
   await ensureDatabase();
   const db = getDb();
+  const document = await getOwnedDocumentSummary(params.userId, params.documentId);
+
+  if (!document) {
+    throw new Error("Document not found");
+  }
+
   const id = nanoid();
   await db.insert(generationJobs).values({
     id,
@@ -210,6 +288,21 @@ export async function getGenerationJob(jobId: string) {
   const db = getDb();
   const [job] = await db.select().from(generationJobs).where(eq(generationJobs.id, jobId)).limit(1);
   return job ?? null;
+}
+
+export async function getGenerationJobForUser(userId: string, jobId: string): Promise<GenerationJobRecord | null> {
+  await ensureDatabase();
+  const db = getDb();
+  const [result] = await db
+    .select({
+      job: generationJobs
+    })
+    .from(generationJobs)
+    .innerJoin(documents, eq(generationJobs.documentId, documents.id))
+    .where(and(eq(generationJobs.id, jobId), eq(documents.ownerUserId, userId)))
+    .limit(1);
+
+  return result?.job ?? null;
 }
 
 export async function setJobStatus(jobId: string, status: string, progress = 0, error?: string | null) {
@@ -249,10 +342,15 @@ export async function appendGenerationEvent(jobId: string, eventType: string, pa
 export async function getGenerationEvents(jobId: string) {
   await ensureDatabase();
   const db = getDb();
-  return db.select().from(generationEvents).where(eq(generationEvents.jobId, jobId)).orderBy(asc(generationEvents.sequence));
+  return db
+    .select()
+    .from(generationEvents)
+    .where(eq(generationEvents.jobId, jobId))
+    .orderBy(asc(generationEvents.sequence));
 }
 
 export async function createAttachmentRecord(params: {
+  userId: string;
   documentId: string;
   filename: string;
   mimeType: string;
@@ -262,6 +360,12 @@ export async function createAttachmentRecord(params: {
 }) {
   await ensureDatabase();
   const db = getDb();
+  const document = await getOwnedDocumentSummary(params.userId, params.documentId);
+
+  if (!document) {
+    throw new Error("Document not found");
+  }
+
   const attachmentId = nanoid();
   await db.insert(attachments).values({
     id: attachmentId,
@@ -290,13 +394,31 @@ export async function createAttachmentRecord(params: {
   return attachmentId;
 }
 
-export async function getAttachmentContext(documentId: string) {
+export async function getAttachmentContext(params: {
+  userId: string;
+  documentId: string;
+  attachmentIds?: string[];
+}) {
   await ensureDatabase();
   const db = getDb();
+  const document = await getOwnedDocumentSummary(params.userId, params.documentId);
+
+  if (!document) {
+    throw new Error("Document not found");
+  }
+
+  const filters = [
+    eq(documentContextChunks.documentId, params.documentId)
+  ];
+
+  if (params.attachmentIds?.length) {
+    filters.push(inArray(documentContextChunks.attachmentId, params.attachmentIds));
+  }
+
   const chunks = await db
     .select()
     .from(documentContextChunks)
-    .where(eq(documentContextChunks.documentId, documentId))
+    .where(and(...filters))
     .orderBy(asc(documentContextChunks.chunkIndex))
     .limit(8);
 

@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import type { AuthenticatedUserSummary } from "@/lib/auth-types";
+import { AccountMenu } from "@/components/ui/account-menu";
 import {
   AppButton,
   AppInput,
@@ -17,7 +19,7 @@ const contentTypes = [
   { value: "landing_page", label: "Landing Page" },
 ];
 
-export function NewDocumentForm() {
+export function NewDocumentForm({ user }: { user: AuthenticatedUserSummary }) {
   const router = useRouter();
   const [contentType, setContentType] = useState("blog_post");
   const [title, setTitle] = useState("");
@@ -94,6 +96,7 @@ export function NewDocumentForm() {
           >
             Mivo
           </AppNavLink>
+          <AccountMenu user={user} />
         </header>
         <div className="flex flex-col lg:flex-row flex-1 items-center justify-between gap-16 py-16 lg:py-0">
           <div className="min-w-0 flex-1 max-w-2xl lg:max-w-none">
@@ -135,7 +138,7 @@ export function NewDocumentForm() {
           <AppPanel className="p-8 md:p-10 w-full lg:w-[480px] xl:w-[520px] shrink-0 border border-[var(--border)]/50 bg-[#0A0A0A]/80 backdrop-blur-xl relative overflow-hidden flex flex-col justify-center min-h-[440px]">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-strong)]/30 to-transparent opacity-50" />
             {submitting ? (
-              <div className="flex flex-col items-center justify-center text-center w-full animate-in fade-in duration-500">
+              <div className="motion-fade-in-slow flex flex-col items-center justify-center text-center w-full">
                 <div className="relative flex items-center justify-center w-20 h-20 mb-8">
                   <div className="absolute inset-0 rounded-full border-t-2 border-[var(--accent-strong)] animate-spin" />
                   <div className="absolute inset-2 rounded-full border-r-2 border-[var(--accent)] animate-[spin_1.5s_linear_infinite_reverse]" />
@@ -151,7 +154,7 @@ export function NewDocumentForm() {
             ) : (
               <form
                 onSubmit={handleSubmit}
-                className="animate-in fade-in duration-300"
+                className="motion-fade-in"
               >
                 <div className="space-y-7">
                   <label className="space-y-3 block">

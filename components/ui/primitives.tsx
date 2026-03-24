@@ -17,6 +17,12 @@ import {
 } from "@radix-ui/themes";
 
 type ButtonTone = "primary" | "secondary" | "ghost";
+type NextHref = ComponentPropsWithoutRef<typeof NextLink>["href"];
+type AppHref = string | NextHref;
+
+function toNextHref(href: AppHref): NextHref {
+  return href as NextHref;
+}
 
 export function AppPanel({
   className,
@@ -54,12 +60,12 @@ export function AppButtonLink({
   ...props
 }: Omit<ComponentPropsWithoutRef<typeof Button>, "asChild" | "children"> & {
   tone?: ButtonTone;
-  href: ComponentPropsWithoutRef<typeof NextLink>["href"];
+  href: AppHref;
   children: ReactNode;
 }) {
   return (
     <Button {...props} asChild data-tone={tone} className={clsx("app-button", className)}>
-      <NextLink href={href}>{children}</NextLink>
+      <NextLink href={toNextHref(href)}>{children}</NextLink>
     </Button>
   );
 }
@@ -69,13 +75,16 @@ export function AppNavLink({
   className,
   children
 }: {
-  href: ComponentPropsWithoutRef<typeof NextLink>["href"];
+  href: AppHref;
   className?: string;
   children: ReactNode;
 }) {
   if (className?.includes("brand-mark")) {
     return (
-      <NextLink href={href} className={clsx("app-nav-link", className)}>
+      <NextLink
+        href={toNextHref(href)}
+        className={clsx("app-nav-link", className)}
+      >
         {children}
       </NextLink>
     );
@@ -83,7 +92,7 @@ export function AppNavLink({
 
   return (
     <RadixLink asChild className={clsx("app-nav-link", className)}>
-      <NextLink href={href}>{children}</NextLink>
+      <NextLink href={toNextHref(href)}>{children}</NextLink>
     </RadixLink>
   );
 }

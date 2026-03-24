@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 import { createRouteErrorResponse } from "@/lib/api-error";
+import { requireRequestUser } from "@/lib/auth-helpers";
 import { rewriteRequestSchema } from "@/lib/schema/content";
-import { getDocument } from "@/lib/records";
+import { getOwnedDocument } from "@/lib/records";
 import { rewriteSelection } from "@/lib/ai/generation";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const authState = await requireRequestUser(request);
+
+    if (authState.response) {
+      return authState.response;
+    }
+
     const { id } = await params;
     const body = rewriteRequestSchema.parse(await request.json());
-    const document = await getDocument(id);
+    const document = await getOwnedDocument(authState.user.id, id);
 
     if (!document) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });

@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import type { JSONContent } from "@tiptap/core";
-import { appendGenerationEvent, getAttachmentContext, getDocument, getGenerationJob, saveDocumentContent, setJobStatus } from "@/lib/records";
+import { requireRequestUser } from "@/lib/auth-helpers";
+import {
+  appendGenerationEvent,
+  getAttachmentContext,
+  getGenerationJobForUser,
+  getOwnedDocument,
+  saveDocumentContent,
+  setJobStatus
+} from "@/lib/records";
 import { blockDataToNodes, createInitialDocumentTitle, generateOutline, sanitizeContentType, streamBlock } from "@/lib/ai/generation";
 import { insertPlaceholderNodes, replacePlaceholderWithNodes } from "@/lib/schema/editor";
 import type { Outline } from "@/lib/schema/content";
@@ -15,9 +23,15 @@ function toSse(event: OutboundEvent) {
   return `data: ${JSON.stringify(event)}\n\n`;
 }
 
-export async function GET(_: Request, { params }: { params: Promise<{ jobId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ jobId: string }> }) {
+  const authState = await requireRequestUser(request);
+
+  if (authState.response) {
+    return authState.response;
+  }
+
   const { jobId } = await params;
-  const job = await getGenerationJob(jobId);
+  const job = await getGenerationJobForUser(authState.user.id, jobId);
 
   if (!job) {
     return NextResponse.json({ error: "Generation job not found" }, { status: 404 });
@@ -38,16 +52,21 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
           documentId: string;
           prompt: string;
           contentType: string;
+          attachmentIds?: string[];
         };
 
-        const document = await getDocument(requestPayload.documentId);
+        const document = await getOwnedDocument(authState.user.id, requestPayload.documentId);
 
         if (!document) {
           throw new Error("Document not found");
         }
 
         const contentType = sanitizeContentType(requestPayload.contentType);
-        const attachmentContext = await getAttachmentContext(requestPayload.documentId);
+        const attachmentContext = await getAttachmentContext({
+          userId: authState.user.id,
+          documentId: requestPayload.documentId,
+          attachmentIds: requestPayload.attachmentIds ?? []
+        });
         const outline = (await generateOutline({
           contentType,
           prompt: requestPayload.prompt,
@@ -72,7 +91,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
         const totalBlocks = outline.blocks.length;
 
         for (const [index, block] of outline.blocks.entries()) {
-          const currentJob = await getGenerationJob(jobId);
+          const currentJob = await getGenerationJobForUser(authState.user.id, jobId);
 
           if (!currentJob || currentJob.status === "cancelled") {
             await send({ type: "generation.cancelled", payload: {} });
@@ -120,6 +139,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
         }
 
         const versionId = await saveDocumentContent({
+          userId: authState.user.id,
           documentId: requestPayload.documentId,
           title: nextTitle,
           content: currentJson,

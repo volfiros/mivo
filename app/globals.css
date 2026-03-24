@@ -385,6 +385,10 @@ label {
     );
 }
 
+.prose-editor {
+    min-height: 100%;
+}
+
 .prose-block {
     margin-bottom: 1rem;
 }
@@ -446,9 +450,47 @@ label {
     animation: pulse-slide 1.6s linear infinite;
 }
 
+.motion-fade-in {
+    animation: fade-in 300ms ease-out both;
+}
+
+.motion-fade-in-fast {
+    animation: fade-in 200ms ease-out both;
+}
+
+.motion-fade-in-slow {
+    animation: fade-in 500ms ease-out both;
+}
+
+.motion-scale-in-fast {
+    animation: scale-in 200ms ease-out both;
+}
+
 @keyframes pulse-slide {
     to {
         transform: translateX(100%);
+    }
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scale-in {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
     }
 }
 

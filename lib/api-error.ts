@@ -32,7 +32,7 @@ function getDatabaseStatus(error: DbLikeError) {
   if (schemaCodes.has(error.code ?? "")) {
     return {
       status: 500,
-      error: "Database schema is out of date. Restart the app after refreshing your local Postgres schema."
+      error: "Database schema is out of date. Run the local migrations before starting the app again."
     };
   }
 
