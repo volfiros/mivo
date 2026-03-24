@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
@@ -13,7 +12,6 @@ import {
 } from "@/lib/schema/editor";
 import {
   AppButton,
-  AppButtonLink,
   AppScrollArea,
   AppTextArea,
   StatusBadge,
@@ -137,6 +135,12 @@ export function Workspace({ document }: { document: DocumentRecord }) {
   const [blockStatus, setBlockStatus] = useState<Record<string, string>>({});
   const [selectionText, setSelectionText] = useState("");
   const [busyUpload, setBusyUpload] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {} });
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -319,6 +323,37 @@ export function Workspace({ document }: { document: DocumentRecord }) {
     streamRef.current = null;
   }
 
+  function handleNavigation(target: string) {
+    if (overallStatus === "generating") {
+      setConfirmDialog({
+        isOpen: true,
+        title: "Process in Progress",
+        message:
+          "A generation process is currently running. Leaving this page will halt the process. Do you wish to continue?",
+        onConfirm: async () => {
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+          await handleCancel();
+          router.push(target);
+        },
+      });
+    } else {
+      router.push(target);
+    }
+  }
+
+  function handleHalt() {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Halt Generation",
+      message:
+        "Are you sure you want to manually halt the current generation? This action cannot be undone.",
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        await handleCancel();
+      },
+    });
+  }
+
   async function handleRewriteSelection() {
     if (!editor || !selectionText || !rewritePrompt) {
       return;
@@ -372,6 +407,28 @@ export function Workspace({ document }: { document: DocumentRecord }) {
   return (
     <div className="editor-shell h-screen overflow-hidden relative">
       <aside className="studio-rail border-r border-[var(--border)]/50 px-5 py-6 md:px-6 bg-[#0A0A0A]/80 backdrop-blur-xl relative z-10 h-full overflow-y-auto pb-10">
+        <div className="mb-8 flex">
+          <button
+            type="button"
+            onClick={() => handleNavigation("/")}
+            className="group flex items-center justify-center w-8 h-8 rounded-lg border border-[var(--border)] bg-[#141414] hover:bg-[#1a1a1a] hover:border-[var(--accent-strong)]/50 text-[var(--text-soft)] hover:text-[var(--accent-strong)] transition-all duration-300 hover:shadow-[0_0_15px_rgba(47,223,160,0.15)]"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="group-hover:-translate-x-0.5 transition-transform duration-300"
+            >
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+          </button>
+        </div>
         <div className="space-y-5">
           <div className="border-b border-[var(--border)]/50 pb-5">
             <p className="mb-3 text-[10px] uppercase tracking-[0.2em] font-semibold text-[var(--text-soft)]">
@@ -484,22 +541,24 @@ export function Workspace({ document }: { document: DocumentRecord }) {
               />
             </div>
             <div className="flex flex-wrap gap-3 mt-4 lg:mt-0">
-              <AppButtonLink
-                href={`/preview/${document.id}` as Route}
+              <AppButton
+                type="button"
+                onClick={() => handleNavigation(`/preview/${document.id}`)}
                 tone="secondary"
                 size="3"
-                className="text-xs"
+                className="text-xs cursor-pointer"
               >
                 Preview View
-              </AppButtonLink>
-              <AppButtonLink
-                href="/studio/new"
+              </AppButton>
+              <AppButton
+                type="button"
+                onClick={() => handleNavigation("/studio/new")}
                 tone="ghost"
                 size="3"
-                className="text-xs"
+                className="text-xs cursor-pointer"
               >
                 New
-              </AppButtonLink>
+              </AppButton>
             </div>
           </div>
 
@@ -559,11 +618,11 @@ export function Workspace({ document }: { document: DocumentRecord }) {
               <div className="grid grid-cols-2 gap-3">
                 <AppButton
                   type="button"
-                  onClick={handleCancel}
+                  onClick={handleHalt}
                   disabled={!jobId || overallStatus !== "generating"}
                   tone="secondary"
                   size="3"
-                  className="text-xs"
+                  className="text-xs cursor-pointer"
                 >
                   Halt
                 </AppButton>
@@ -669,6 +728,35 @@ export function Workspace({ document }: { document: DocumentRecord }) {
           </div>
         </div>
       </aside>
+
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-[#0A0A0A] border border-[var(--border)] rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-transparent pointer-events-none" />
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-strong)]/50 to-transparent opacity-50" />
+
+            <h3 className="font-display text-2xl text-white mb-3 relative z-10">
+              {confirmDialog.title}
+            </h3>
+            <p className="text-sm text-[var(--text-muted)] leading-relaxed mb-8 relative z-10">
+              {confirmDialog.message}
+            </p>
+            <div className="flex justify-end gap-3 relative z-10">
+              <AppButton
+                tone="ghost"
+                onClick={() =>
+                  setConfirmDialog((prev) => ({ ...prev, isOpen: false }))
+                }
+              >
+                Cancel
+              </AppButton>
+              <AppButton tone="primary" onClick={confirmDialog.onConfirm}>
+                Continue
+              </AppButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
