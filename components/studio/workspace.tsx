@@ -3,14 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import { EditorContent, useEditor } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
 import type { AuthenticatedUserSummary } from "@/lib/auth-types";
 import { editorExtensions } from "@/lib/editor/extensions";
 import { AccountMenu } from "@/components/ui/account-menu";
 import {
+  createEmptyDocument,
   insertPlaceholderNodes,
   replacePlaceholderWithNodes,
+  sanitizeDocumentContent,
   updatePlaceholderPreview,
 } from "@/lib/schema/editor";
 import {
@@ -47,6 +49,7 @@ type DocumentRecord = {
   title: string;
   contentType: string;
   status: string;
+  currentVersionId: string | null;
   currentContentJson: JSONContent;
   versions: VersionRecord[];
   attachments: AttachmentRecord[];
@@ -73,48 +76,6 @@ type StreamEvent =
   | { type: "generation.completed"; payload: { versionId: string | null } }
   | { type: "generation.cancelled"; payload: Record<string, never> };
 
-function saveDocument(documentId: string, content: JSONContent, title: string) {
-  return fetch(`/api/documents/${documentId}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      title,
-      content,
-    }),
-  });
-}
-
-function useAutosave(editor: Editor | null, documentId: string, title: string) {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-
-    const handleUpdate = ({ editor: currentEditor }: { editor: Editor }) => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-
-      timerRef.current = setTimeout(() => {
-        void saveDocument(documentId, currentEditor.getJSON(), title);
-      }, 500);
-    };
-
-    editor.on("update", handleUpdate);
-
-    return () => {
-      editor.off("update", handleUpdate);
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-    };
-  }, [documentId, editor, title]);
-}
-
 function formatDate(value: string | Date) {
   const date = new Date(value);
 
@@ -132,6 +93,17 @@ function formatDate(value: string | Date) {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`;
 }
 
+function createSnapshotKey(title: string, content: JSONContent) {
+  return JSON.stringify({
+    title,
+    content,
+  });
+}
+
+function cloneContent<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export function Workspace({
   document,
   draftHistory,
@@ -143,13 +115,37 @@ export function Workspace({
 }) {
   const router = useRouter();
   const streamRef = useRef<EventSource | null>(null);
+  const [archiveItems, setArchiveItems] = useState(draftHistory);
+  const [serverTitle, setServerTitle] = useState(document.title);
   const [title, setTitle] = useState(document.title);
+
+  if (document.title !== serverTitle) {
+    setServerTitle(document.title);
+    setTitle(document.title);
+  }
   const [prompt, setPrompt] = useState("");
   const [rewritePrompt, setRewritePrompt] = useState("");
+  const [savedSnapshotKey, setSavedSnapshotKey] = useState(() =>
+    createSnapshotKey(document.title, document.currentContentJson),
+  );
+  const [isDirty, setIsDirty] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [savingVersion, setSavingVersion] = useState(false);
   const [overallStatus, setOverallStatus] = useState(document.status);
   const [attachmentIds, setAttachmentIds] = useState<string[]>(
     document.attachments.map((attachment) => attachment.id),
   );
+  const [activeVersionId, setActiveVersionId] = useState<string | null>(
+    document.currentVersionId,
+  );
+  const [activeVersionNumber, setActiveVersionNumber] = useState<number | null>(
+    document.versions.find((version) => version.id === document.currentVersionId)
+      ?.versionNumber ?? null,
+  );
+  const [versionLoadError, setVersionLoadError] = useState("");
+  const [saveVersionError, setSaveVersionError] = useState("");
+  const [loadingVersionId, setLoadingVersionId] = useState<string | null>(null);
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [blockStatus, setBlockStatus] = useState<Record<string, string>>({});
   const [selectionText, setSelectionText] = useState("");
@@ -160,20 +156,94 @@ export function Workspace({
     message: string;
     onConfirm: () => void;
   }>({ isOpen: false, title: "", message: "", onConfirm: () => {} });
+  const isViewingHistoricalVersion =
+    activeVersionId !== null && activeVersionId !== document.currentVersionId;
 
   const editor = useEditor({
     immediatelyRender: false,
     extensions: editorExtensions,
-    content: document.currentContentJson,
+    content: sanitizeDocumentContent(document.currentContentJson),
+    enableContentCheck: true,
+    onContentError: ({ error }) => {
+      setVersionLoadError(`Unable to render the canvas: ${error.message}`);
+    },
   });
-
-  useAutosave(editor, document.id, title);
 
   useEffect(() => {
     return () => {
       streamRef.current?.close();
     };
   }, []);
+
+  useEffect(() => {
+    setArchiveItems(draftHistory);
+  }, [draftHistory]);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    editor.setEditable(activeVersionId === document.currentVersionId);
+  }, [activeVersionId, document.currentVersionId, editor]);
+
+  useEffect(() => {
+    if (!document.currentVersionId) {
+      return;
+    }
+
+    const nextSavedSnapshotKey = createSnapshotKey(
+      document.title,
+      document.currentContentJson,
+    );
+
+    if (!isViewingHistoricalVersion) {
+      setSavedSnapshotKey(nextSavedSnapshotKey);
+    }
+
+    if (activeVersionId === null || activeVersionId === document.currentVersionId) {
+      setActiveVersionId(document.currentVersionId);
+      setActiveVersionNumber(
+        document.versions.find((version) => version.id === document.currentVersionId)
+          ?.versionNumber ?? null,
+      );
+      setVersionLoadError("");
+    }
+  }, [
+    activeVersionId,
+    editor,
+    document.currentVersionId,
+    document.currentContentJson,
+    document.title,
+    document.versions,
+    isViewingHistoricalVersion,
+  ]);
+
+  useEffect(() => {
+    if (!editor || isViewingHistoricalVersion) {
+      setIsDirty(false);
+      return;
+    }
+
+    const updateDirtyState = () => {
+      setIsDirty(createSnapshotKey(title, editor.getJSON()) !== savedSnapshotKey);
+    };
+
+    updateDirtyState();
+    editor.on("update", updateDirtyState);
+
+    return () => {
+      editor.off("update", updateDirtyState);
+    };
+  }, [editor, isViewingHistoricalVersion, savedSnapshotKey, title]);
+
+  useEffect(() => {
+    if (!editor || isViewingHistoricalVersion) {
+      return;
+    }
+
+    setIsDirty(createSnapshotKey(title, editor.getJSON()) !== savedSnapshotKey);
+  }, [editor, isViewingHistoricalVersion, savedSnapshotKey, title]);
 
   useEffect(() => {
     if (!editor) {
@@ -216,12 +286,133 @@ export function Workspace({
     router.push(target as Route);
   }
 
+  function getCurrentDraft() {
+    return {
+      title,
+      content: editor?.getJSON() ?? document.currentContentJson,
+    };
+  }
+
+  function closeConfirmDialog() {
+    setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+  }
+
+  function requestDiscardUnsaved(message: string, onConfirm: () => void | Promise<void>) {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Discard Unsaved Changes",
+      message,
+      onConfirm: async () => {
+        closeConfirmDialog();
+        await onConfirm();
+      },
+    });
+  }
+
   function closeActiveStream() {
     streamRef.current?.close();
     streamRef.current = null;
   }
 
+  function applyCanvasContent(nextContent: JSONContent, context: string) {
+    if (!editor) {
+      return false;
+    }
+
+    try {
+      const safeContent = sanitizeDocumentContent(cloneContent(nextContent));
+
+      editor.commands.setContent(
+        safeContent,
+        false,
+        {
+          preserveWhitespace: "full",
+        },
+        {
+          errorOnInvalidContent: true,
+        },
+      );
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown editor error";
+      setVersionLoadError(`Unable to render ${context} in the canvas: ${message}`);
+      editor.commands.setContent(createEmptyDocument(), false);
+      return false;
+    }
+  }
+
+  async function handleSaveTitle() {
+    if (title === document.title || isViewingHistoricalVersion) return;
+    setIsProcessing(true);
+    try {
+      const response = await fetch(`/api/documents/${document.id}/title`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+
+      if (!response.ok) throw new Error("Failed to save title");
+
+      setSavedSnapshotKey(createSnapshotKey(title, document.currentContentJson));
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
+  async function handleCreateVersion() {
+    if (!editor || isViewingHistoricalVersion || savingVersion) {
+      return;
+    }
+
+    const draft = getCurrentDraft();
+
+    if (createSnapshotKey(draft.title, draft.content) === savedSnapshotKey) {
+      return;
+    }
+
+    setIsProcessing(true);
+    setSavingVersion(true);
+    setSaveVersionError("");
+
+    try {
+      const response = await fetch(`/api/documents/${document.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(draft),
+      });
+      const payload = (await response.json()) as {
+        versionId?: string | null;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to create version");
+      }
+
+      setSavedSnapshotKey(createSnapshotKey(draft.title, draft.content));
+      setIsDirty(false);
+      router.refresh();
+    } catch (error) {
+      setSaveVersionError(
+        error instanceof Error ? error.message : "Unable to create version.",
+      );
+    } finally {
+      setSavingVersion(false);
+    }
+  }
+
   async function handleGenerate() {
+    if (!editor || savingVersion || isViewingHistoricalVersion) {
+      return;
+    }
+
+    const draft = getCurrentDraft();
     const response = await fetch("/api/generations", {
       method: "POST",
       headers: {
@@ -232,6 +423,8 @@ export function Workspace({
         prompt,
         contentType: document.contentType,
         attachmentIds,
+        title: draft.title,
+        draftContent: draft.content,
       }),
     });
 
@@ -240,6 +433,77 @@ export function Workspace({
     setJobId(payload.jobId);
     setOverallStatus("generating");
     subscribeToStream(payload.jobId);
+  }
+
+  async function handleLoadVersion(version: VersionRecord) {
+    if (!editor) {
+      return;
+    }
+
+    if (version.id === document.currentVersionId) {
+      setActiveVersionId(document.currentVersionId);
+      setActiveVersionNumber(version.versionNumber);
+      setVersionLoadError("");
+      setSaveVersionError("");
+      setBlockStatus({});
+      setTitle(document.title);
+      setIsDirty(false);
+      applyCanvasContent(document.currentContentJson, "the latest version");
+      return;
+    }
+
+    setLoadingVersionId(version.id);
+    setVersionLoadError("");
+
+    try {
+      const response = await fetch(
+        `/api/documents/${document.id}/versions/${version.id}`,
+      );
+      const payload = (await response.json()) as {
+        version?: { content?: JSONContent; versionNumber?: number };
+        error?: string;
+      };
+
+      if (!response.ok || !payload.version?.content) {
+        throw new Error(payload.error ?? "Unable to load version");
+      }
+
+      setActiveVersionId(version.id);
+      setActiveVersionNumber(
+        payload.version.versionNumber ?? version.versionNumber,
+      );
+      setTitle(document.title);
+      setSaveVersionError("");
+      setBlockStatus({});
+      setIsDirty(false);
+      applyCanvasContent(payload.version.content, `version ${version.versionNumber}`);
+    } catch (error) {
+      setVersionLoadError(
+        error instanceof Error ? error.message : "Unable to load version.",
+      );
+    } finally {
+      setLoadingVersionId(null);
+    }
+  }
+
+  function requestLoadVersion(version: VersionRecord) {
+    if (overallStatus === "generating") {
+      return;
+    }
+
+    if (isDirty && !isViewingHistoricalVersion) {
+      requestDiscardUnsaved(
+        "You have unsaved canvas changes. Loading another version will discard them.",
+        () => {
+          setIsProcessing(true);
+          return handleLoadVersion(version).finally(() => setIsProcessing(false));
+        },
+      );
+      return;
+    }
+
+    setIsProcessing(true);
+    handleLoadVersion(version).finally(() => setIsProcessing(false));
   }
 
   function subscribeToStream(nextJobId: string) {
@@ -273,7 +537,7 @@ export function Workspace({
             ]),
           ),
         );
-        editor.commands.setContent(nextDoc, false);
+        applyCanvasContent(nextDoc, "the generated outline");
       }
 
       if (parsed.type === "block.preview_delta") {
@@ -281,13 +545,13 @@ export function Workspace({
           ...current,
           [parsed.payload.blockId]: "streaming",
         }));
-        editor.commands.setContent(
+        applyCanvasContent(
           updatePlaceholderPreview(
             editor.getJSON(),
             parsed.payload.blockId,
             parsed.payload.preview,
           ),
-          false,
+          `block preview ${parsed.payload.blockId}`,
         );
       }
 
@@ -296,13 +560,13 @@ export function Workspace({
           ...current,
           [parsed.payload.blockId]: "completed",
         }));
-        editor.commands.setContent(
+        applyCanvasContent(
           replacePlaceholderWithNodes(
             editor.getJSON(),
             parsed.payload.blockId,
             parsed.payload.nodes,
           ),
-          false,
+          `block ${parsed.payload.blockId}`,
         );
       }
 
@@ -311,19 +575,21 @@ export function Workspace({
           ...current,
           [parsed.payload.blockId]: "failed",
         }));
-        editor.commands.setContent(
+        applyCanvasContent(
           updatePlaceholderPreview(
             editor.getJSON(),
             parsed.payload.blockId,
             parsed.payload.error,
             "failed",
           ),
-          false,
+          `failed block ${parsed.payload.blockId}`,
         );
       }
 
       if (parsed.type === "generation.completed") {
         setOverallStatus("ready");
+        setActiveVersionId(document.currentVersionId);
+        setActiveVersionNumber(null);
         closeActiveStream();
         router.refresh();
       }
@@ -361,6 +627,13 @@ export function Workspace({
           pushRoute(target);
         },
       });
+    } else if (isDirty && !isViewingHistoricalVersion) {
+      requestDiscardUnsaved(
+        "You have unsaved canvas changes. Leaving now will discard them and open the latest saved version.",
+        () => {
+          pushRoute(target);
+        },
+      );
     } else {
       pushRoute(target);
     }
@@ -380,7 +653,7 @@ export function Workspace({
   }
 
   async function handleRewriteSelection() {
-    if (!editor || !selectionText || !rewritePrompt) {
+    if (!editor || !selectionText || !rewritePrompt || isViewingHistoricalVersion) {
       return;
     }
 
@@ -404,7 +677,7 @@ export function Workspace({
   async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
-    if (!file) {
+    if (!file || isViewingHistoricalVersion) {
       return;
     }
 
@@ -429,8 +702,69 @@ export function Workspace({
     }
   }
 
+  async function handleDeleteDraft(draftId: string) {
+    setIsProcessing(true);
+    setDeletingDraftId(draftId);
+    setVersionLoadError("");
+
+    try {
+      const response = await fetch(`/api/documents/${draftId}`, {
+        method: "DELETE",
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        nextPath?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Unable to delete draft");
+      }
+
+      if (draftId === document.id) {
+        pushRoute(payload.nextPath ?? "/studio/new");
+        return;
+      }
+
+      setArchiveItems((current) =>
+        current.filter((draft) => draft.id !== draftId),
+      );
+    } catch (error) {
+      setVersionLoadError(
+        error instanceof Error ? error.message : "Unable to delete draft.",
+      );
+    } finally {
+      setDeletingDraftId(null);
+    }
+  }
+
+  function requestDeleteDraft(draft: DraftHistoryItem) {
+    const message =
+      draft.id === document.id
+        ? "Delete this draft and leave the workspace? This will remove the current document and its saved versions."
+        : "Delete this draft and all of its saved versions?";
+
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Draft",
+      message,
+      onConfirm: async () => {
+        closeConfirmDialog();
+        await handleDeleteDraft(draft.id);
+      },
+    });
+  }
+
   return (
     <div className="editor-shell h-screen overflow-hidden relative">
+      {isProcessing ? (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0A0A0A]/60 backdrop-blur-sm transition-all duration-300">
+          <div className="flex flex-col items-center">
+            <div className="w-10 h-10 rounded-full border-t-2 border-[var(--accent-strong)] animate-spin mb-4" />
+            <p className="text-sm font-semibold text-[var(--accent-strong)] tracking-widest uppercase animate-pulse">Processing...</p>
+          </div>
+        </div>
+      ) : null}
       <aside className="studio-rail border-r border-[var(--border)]/50 px-5 py-6 md:px-6 bg-[#0A0A0A]/80 backdrop-blur-xl relative z-10 h-full overflow-y-auto pb-10">
         <div className="mb-8 flex">
           <button
@@ -464,11 +798,30 @@ export function Workspace({
                 {document.contentType.replace("_", " ")}
               </p>
               <StatusBadge status={overallStatus} />
+              {isViewingHistoricalVersion && activeVersionNumber !== null ? (
+                <StatusBadge
+                  status="ready"
+                  label={`viewing v${activeVersionNumber}`}
+                />
+              ) : null}
+              {isDirty && !isViewingHistoricalVersion ? (
+                <StatusBadge status="queued" label="unsaved" />
+              ) : null}
             </div>
             <p className="mt-4 text-sm leading-6 text-[var(--text-muted)]">
               Persisted document state with checkpointed version history and
               block-aware generation controls.
             </p>
+            {versionLoadError ? (
+              <p className="mt-3 text-sm text-[rgb(255,179,173)]">
+                {versionLoadError}
+              </p>
+            ) : null}
+            {saveVersionError ? (
+              <p className="mt-3 text-sm text-[rgb(255,179,173)]">
+                {saveVersionError}
+              </p>
+            ) : null}
           </div>
 
           <div>
@@ -478,51 +831,93 @@ export function Workspace({
                 Draft Archive
               </p>
             </div>
-            <AppScrollArea className="max-h-[280px] pr-2">
-              {draftHistory.length ? (
+            <AppScrollArea className="max-h-[280px]">
+              {archiveItems.length ? (
                 <div className="space-y-2">
-                  {draftHistory.map((draft) => {
+                  {archiveItems.map((draft) => {
                     const isActive = draft.id === document.id;
                     return (
-                      <button
+                      <div
                         key={draft.id}
-                        type="button"
-                        onClick={() => handleNavigation(`/studio/${draft.id}`)}
-                        className={`group relative w-full rounded-xl border p-3.5 text-left transition-all duration-300 overflow-hidden ${
+                        className={`group relative box-border grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)_40px] items-stretch overflow-hidden rounded-xl border transition-all duration-300 ${
                           isActive
-                            ? "border-[var(--accent-strong)]/40 bg-[var(--accent)]/10 shadow-[0_0_15px_rgba(47,223,160,0.05)]"
+                            ? "border-[var(--accent-strong)]/35 bg-[#0A0A0A] shadow-[0_0_15px_rgba(47,223,160,0.05)]"
                             : "border-[var(--border)]/50 bg-[#0A0A0A] hover:bg-[#141414] hover:border-[var(--border-strong)]"
                         }`}
                       >
                         {isActive && (
-                          <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[var(--accent-strong)] to-[var(--accent)]" />
+                          <>
+                            <div className="pointer-events-none absolute inset-y-0 left-0 right-[40px] z-0 rounded-xl bg-[var(--accent)]/12" />
+                            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-[4px] rounded-full bg-gradient-to-b from-[var(--accent-strong)] to-[var(--accent)]" />
+                          </>
                         )}
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent -translate-x-[100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
-
-                        <div
-                          className={`flex items-center justify-between gap-3 ${isActive ? "pl-2" : ""}`}
+                        <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-xl">
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[var(--accent-strong)]/6 to-transparent -translate-x-[100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleNavigation(`/studio/${draft.id}`)}
+                          className={`relative z-20 min-w-0 overflow-hidden px-3.5 py-3 text-left ${isActive ? "pl-6" : ""}`}
                         >
-                          <p
-                            className={`truncate text-sm font-semibold tracking-tight transition-colors ${isActive ? "text-white" : "text-[var(--text-soft)] group-hover:text-white"}`}
+                          <div className="flex min-w-0 items-center justify-between gap-3">
+                            <p
+                              className={`min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap pr-2 text-sm font-semibold tracking-tight transition-colors ${isActive ? "text-[var(--accent-strong)]" : "text-[var(--text-soft)] group-hover:text-white"}`}
+                              title={draft.title}
+                            >
+                              {draft.title}
+                            </p>
+                            <StatusBadge
+                              status={draft.status}
+                              className="text-[9px] px-1.5 py-0.5 shrink-0 shadow-sm"
+                            />
+                          </div>
+                          <div
+                            className="mt-2 flex min-w-0 items-center gap-2"
                           >
-                            {draft.title}
-                          </p>
-                          <StatusBadge
-                            status={draft.status}
-                            className="text-[9px] px-1.5 py-0.5 shrink-0 shadow-sm"
-                          />
-                        </div>
-                        <div
-                          className={`mt-2 flex items-center gap-2 ${isActive ? "pl-2" : ""}`}
+                            <span className="px-1.5 py-0.5 rounded border border-[var(--border)] bg-[#141414] text-[9px] font-mono uppercase tracking-widest text-[var(--text-muted)]">
+                              {draft.contentType.replace("_", " ")}
+                            </span>
+                            <p className="truncate text-[9px] font-mono uppercase tracking-widest text-[var(--text-muted)]">
+                              {formatDate(draft.updatedAt).split(" ")[0]}
+                            </p>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => requestDeleteDraft(draft)}
+                          disabled={
+                            deletingDraftId === draft.id ||
+                            (isActive && overallStatus === "generating")
+                          }
+                          className={`relative z-20 flex min-w-0 items-center justify-center self-stretch border-l text-[var(--text-soft)] transition-colors hover:text-[rgb(255,179,173)] disabled:cursor-not-allowed disabled:opacity-50 ${
+                            isActive
+                              ? "border-[var(--accent-strong)]/20 bg-[#111111] hover:bg-[#171717]"
+                              : "border-[var(--border)]/70 bg-[#111111] hover:bg-[#171717]"
+                          }`}
+                          aria-label={`Delete ${draft.title}`}
                         >
-                          <span className="px-1.5 py-0.5 rounded border border-[var(--border)] bg-[#141414] text-[9px] font-mono uppercase tracking-widest text-[var(--text-muted)]">
-                            {draft.contentType.replace("_", " ")}
-                          </span>
-                          <p className="text-[9px] font-mono uppercase tracking-widest text-[var(--text-muted)]">
-                            {formatDate(draft.updatedAt).split(" ")[0]}
-                          </p>
-                        </div>
-                      </button>
+                          {deletingDraftId === draft.id ? (
+                            <span className="text-[10px] font-mono">...</span>
+                          ) : (
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                              <path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6" />
+                              <line x1="10" y1="11" x2="10" y2="17" />
+                              <line x1="14" y1="11" x2="14" y2="17" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -544,20 +939,36 @@ export function Workspace({
             <AppScrollArea className="max-h-[320px] pr-2">
               <div className="space-y-2">
                 {sortedVersions.map((version) => (
-                  <div
+                  <button
                     key={version.id}
-                    className="p-3 rounded-xl border border-[var(--border)] bg-[#141414] hover:border-[var(--border-strong)] transition-colors flex items-center justify-between gap-3"
+                    type="button"
+                    onClick={() => {
+                      requestLoadVersion(version);
+                    }}
+                    disabled={
+                      loadingVersionId === version.id ||
+                      overallStatus === "generating"
+                    }
+                    className={`flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left transition-colors ${
+                      activeVersionId === version.id
+                        ? "border-[var(--accent-strong)]/40 bg-[var(--accent)]/10"
+                        : "border-[var(--border)] bg-[#141414] hover:border-[var(--border-strong)]"
+                    }`}
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-white">
                         v{version.versionNumber}
+                        {version.id === document.currentVersionId ? " current" : ""}
                       </p>
                       <p className="mt-1 text-[10px] uppercase tracking-wider text-[var(--text-soft)]">
                         {formatDate(version.createdAt)}
                       </p>
                     </div>
-                    <StatusBadge status={version.storageMode} />
-                  </div>
+                    <StatusBadge
+                      status={loadingVersionId === version.id ? "generating" : version.storageMode}
+                      label={loadingVersionId === version.id ? "loading" : undefined}
+                    />
+                  </button>
                 ))}
               </div>
             </AppScrollArea>
@@ -614,27 +1025,69 @@ export function Workspace({
       </aside>
 
       <section className="px-5 py-6 md:px-8 relative z-10 h-full flex flex-col min-h-0">
-        <div className="mx-auto w-full max-w-5xl flex-1 flex flex-col min-h-0 space-y-5">
-          <div className="flex flex-col gap-5 pb-2 lg:flex-row lg:items-start lg:justify-between shrink-0">
-            <div className="min-w-0 flex-1">
+        <div className="w-full flex-1 flex flex-col min-h-0 space-y-5">
+          <div className="flex flex-col gap-4 pb-2 shrink-0 w-full">
+            <div className="min-w-0 flex-1 w-full">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-md mb-4">
                 <div className="w-2 h-2 rounded-full bg-[var(--accent-strong)] animate-pulse shadow-[0_0_8px_var(--accent-strong)]" />
                 <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-soft)]">
                   Live Workspace
                 </span>
               </div>
-              <AppTextArea
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                rows={2}
-                placeholder="Untitled draft"
-                className="studio-title-field text-white"
-              />
+              <div className="w-full min-w-0 flex items-center gap-4">
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    placeholder="Untitled draft"
+                    disabled={isViewingHistoricalVersion}
+                    spellCheck={false}
+                    className="studio-title-field text-white"
+                  />
+                </div>
+                {title !== document.title && !isViewingHistoricalVersion && (
+                  <AppButton
+                    type="button"
+                    onClick={() => {
+                      void handleSaveTitle();
+                    }}
+                    tone="secondary"
+                    size="1"
+                    className="shrink-0 text-[10px] uppercase tracking-wider h-7 px-3 bg-[var(--surface-2)]/50 hover:bg-[var(--accent-strong)]/20 hover:text-[var(--accent-strong)] hover:border-[var(--accent-strong)]/50 transition-colors"
+                  >
+                    Save Title
+                  </AppButton>
+                )}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-3 mt-4 lg:mt-0 items-start">
+            <div className="flex flex-wrap gap-3 mt-2 items-center shrink-0 w-full">
               <AppButton
                 type="button"
-                onClick={() => handleNavigation(`/preview/${document.id}`)}
+                onClick={() => {
+                  void handleCreateVersion();
+                }}
+                disabled={
+                  !isDirty ||
+                  savingVersion ||
+                  isViewingHistoricalVersion ||
+                  overallStatus === "generating"
+                }
+                tone="primary"
+                size="3"
+                className="text-xs cursor-pointer"
+              >
+                {savingVersion ? "Creating..." : "Create Version"}
+              </AppButton>
+              <AppButton
+                type="button"
+                onClick={() =>
+                  handleNavigation(
+                    isViewingHistoricalVersion && activeVersionId
+                      ? `/preview/${document.id}?version=${activeVersionId}`
+                      : `/preview/${document.id}`,
+                  )
+                }
                 tone="secondary"
                 size="3"
                 className="text-xs cursor-pointer"
@@ -652,7 +1105,7 @@ export function Workspace({
               </AppButton>
               <AccountMenu
                 user={user}
-                disabled={overallStatus === "generating"}
+                disabled={overallStatus === "generating" || savingVersion}
               />
             </div>
           </div>
@@ -676,6 +1129,33 @@ export function Workspace({
             </div>
 
             <div className="relative p-6 md:p-10 flex-1 overflow-y-auto prose-editor text-white/90 z-10">
+              {isViewingHistoricalVersion && activeVersionNumber !== null ? (
+                <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-[#111111] px-4 py-3 text-sm text-[var(--text-soft)]">
+                  <p>
+                    Viewing snapshot <span className="text-white">v{activeVersionNumber}</span>.
+                    Return to the latest draft to edit or generate.
+                  </p>
+                  {document.currentVersionId ? (
+                    <AppButton
+                      type="button"
+                      tone="ghost"
+                      size="2"
+                      className="text-xs"
+                      onClick={() => {
+                        const currentVersion = document.versions.find(
+                          (version) => version.id === document.currentVersionId,
+                        );
+
+                        if (currentVersion) {
+                          requestLoadVersion(currentVersion);
+                        }
+                      }}
+                    >
+                      Return to Latest
+                    </AppButton>
+                  ) : null}
+                </div>
+              ) : null}
               <EditorContent editor={editor} className="min-h-full" />
             </div>
           </div>
@@ -703,7 +1183,12 @@ export function Workspace({
               <AppButton
                 type="button"
                 onClick={handleGenerate}
-                disabled={!prompt.trim() || overallStatus === "generating"}
+                disabled={
+                  !prompt.trim() ||
+                  overallStatus === "generating" ||
+                  isViewingHistoricalVersion ||
+                  savingVersion
+                }
                 tone="primary"
                 size="3"
                 className="w-full text-xs shadow-[0_0_15px_rgba(47,223,160,0.15)]"
@@ -714,7 +1199,12 @@ export function Workspace({
                 <AppButton
                   type="button"
                   onClick={handleHalt}
-                  disabled={!jobId || overallStatus !== "generating"}
+                  disabled={
+                    !jobId ||
+                    overallStatus !== "generating" ||
+                    isViewingHistoricalVersion ||
+                    savingVersion
+                  }
                   tone="secondary"
                   size="3"
                   className="text-xs cursor-pointer"
@@ -732,6 +1222,7 @@ export function Workspace({
                     <input
                       type="file"
                       className="hidden"
+                      disabled={isViewingHistoricalVersion || savingVersion}
                       onChange={handleUpload}
                     />
                   </label>
@@ -757,6 +1248,7 @@ export function Workspace({
                   value={rewritePrompt}
                   onChange={(event) => setRewritePrompt(event.target.value)}
                   rows={2}
+                  disabled={isViewingHistoricalVersion || savingVersion}
                   placeholder="Refinement instruction..."
                   className="bg-transparent border-none shadow-none text-sm resize-none focus:ring-0"
                 />
@@ -765,7 +1257,12 @@ export function Workspace({
             <AppButton
               type="button"
               onClick={handleRewriteSelection}
-              disabled={!selectionText || !rewritePrompt.trim()}
+              disabled={
+                !selectionText ||
+                !rewritePrompt.trim() ||
+                isViewingHistoricalVersion ||
+                savingVersion
+              }
               tone="secondary"
               size="3"
               className="w-full text-xs border-[var(--accent)]/30 hover:border-[var(--accent-strong)]/50"

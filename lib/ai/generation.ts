@@ -65,7 +65,8 @@ export async function streamBlock(params: {
   title: string;
   outlineGoal: string;
   priorBlocks: string;
-  onEvent: (event: ResponseStreamEvent) => Promise<void> | void;
+  onEvent?: (event: ResponseStreamEvent) => Promise<void> | void;
+  onDelta?: (delta: string) => Promise<void> | void;
 }) {
   const client = getOpenAI();
   const schema = blockSchemaMap[params.blockType];
@@ -79,7 +80,12 @@ export async function streamBlock(params: {
   });
 
   for await (const event of stream) {
-    await params.onEvent(event);
+    if (params.onEvent) {
+      await params.onEvent(event);
+    }
+    if (params.onDelta && event.type === 'response.output_text.delta') {
+      await params.onDelta(event.delta);
+    }
   }
 
   const finalResponse = await stream.finalResponse();

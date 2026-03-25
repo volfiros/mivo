@@ -98,7 +98,9 @@ export const generationRequestSchema = z.object({
   documentId: z.string().min(1),
   prompt: z.string().min(1),
   contentType: contentTypeSchema,
-  attachmentIds: z.array(z.string()).default([])
+  attachmentIds: z.array(z.string()).default([]),
+  title: z.string().min(1),
+  draftContent: z.any().optional()
 });
 
 export const rewriteRequestSchema = z.object({

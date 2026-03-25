@@ -11,7 +11,11 @@ import {
   setJobStatus
 } from "@/lib/records";
 import { blockDataToNodes, createInitialDocumentTitle, generateOutline, sanitizeContentType, streamBlock } from "@/lib/ai/generation";
-import { insertPlaceholderNodes, replacePlaceholderWithNodes } from "@/lib/schema/editor";
+import {
+  insertPlaceholderNodes,
+  replacePlaceholderWithNodes,
+  sanitizeDocumentContent
+} from "@/lib/schema/editor";
 import type { Outline } from "@/lib/schema/content";
 
 type OutboundEvent = {
@@ -53,6 +57,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
           prompt: string;
           contentType: string;
           attachmentIds?: string[];
+          title?: string;
+          draftContent?: JSONContent;
         };
 
         const document = await getOwnedDocument(authState.user.id, requestPayload.documentId);
@@ -73,13 +79,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
           context: attachmentContext
         })) as Outline;
 
-        const nextTitle = outline.title || createInitialDocumentTitle(requestPayload.prompt, contentType);
+        const baseContent = sanitizeDocumentContent(
+          requestPayload.draftContent ?? (document.currentContentJson as JSONContent)
+        );
+        const baseTitle = requestPayload.title?.trim() || document.title;
+
+        const nextTitle =
+          outline.title ||
+          baseTitle ||
+          createInitialDocumentTitle(requestPayload.prompt, contentType);
         const placeholders = outline.blocks.map((block) => ({
           blockId: block.blockId,
           label: block.label
         }));
         let priorBlocks = "";
-        let currentJson = insertPlaceholderNodes(document.currentContentJson as JSONContent, placeholders);
+        let currentJson = insertPlaceholderNodes(baseContent, placeholders);
 
         await send({
           type: "outline.ready",
@@ -109,17 +123,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
             title: nextTitle,
             outlineGoal: block.goal,
             priorBlocks,
-            onEvent: async (event) => {
-              if (event.type === "response.output_text.delta") {
-                preview += event.delta;
-                await send({
-                  type: "block.preview_delta",
-                  payload: {
-                    blockId: block.blockId,
-                    preview
-                  }
-                });
-              }
+            onDelta: async (delta) => {
+              preview += delta;
+              await send({
+                type: "block.preview_delta",
+                payload: {
+                  blockId: block.blockId,
+                  preview
+                }
+              });
             }
           });
 

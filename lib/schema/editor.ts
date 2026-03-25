@@ -7,18 +7,30 @@ type FeatureItem = {
 };
 
 function paragraphNode(text: string): JSONContent {
+  const content = inlineTextContent(text);
+
   return {
     type: "paragraph",
-    content: [{ type: "text", text }]
+    ...(content ? { content } : {})
   };
 }
 
 function headingNode(text: string, level: 2 | 3 = 2): JSONContent {
+  const content = inlineTextContent(text);
+
   return {
     type: "heading",
     attrs: { level },
-    content: [{ type: "text", text }]
+    ...(content ? { content } : {})
   };
+}
+
+function inlineTextContent(text: string): JSONContent[] | undefined {
+  if (text.length === 0) {
+    return undefined;
+  }
+
+  return [{ type: "text", text }];
 }
 
 function featureAttrs(items: FeatureItem[]) {
@@ -126,12 +138,34 @@ export function blockToNodes(block: SemanticBlock, blockId: string): JSONContent
 export function createEmptyDocument(): JSONContent {
   return {
     type: "doc",
-    content: [paragraphNode("")]
+    content: [{ type: "paragraph" }]
   };
 }
 
+export function sanitizeDocumentContent(value: JSONContent | null | undefined): JSONContent {
+  const sanitizedRoot = sanitizeNode(value);
+
+  if (!sanitizedRoot) {
+    return createEmptyDocument();
+  }
+
+  if (sanitizedRoot.type !== "doc") {
+    return {
+      type: "doc",
+      content: [sanitizedRoot]
+    };
+  }
+
+  if (!Array.isArray(sanitizedRoot.content) || sanitizedRoot.content.length === 0) {
+    return createEmptyDocument();
+  }
+
+  return sanitizedRoot;
+}
+
 export function insertPlaceholderNodes(doc: JSONContent, placeholders: Array<{ blockId: string; label: string }>): JSONContent {
-  const content = Array.isArray(doc.content) ? [...doc.content] : [];
+  const safeDoc = sanitizeDocumentContent(doc);
+  const content = Array.isArray(safeDoc.content) ? [...safeDoc.content] : [];
 
   const placeholderNodes = placeholders.map((placeholder) => ({
     type: "aiPlaceholder",
@@ -144,13 +178,13 @@ export function insertPlaceholderNodes(doc: JSONContent, placeholders: Array<{ b
   }));
 
   return {
-    ...doc,
+    ...safeDoc,
     content: [...content, ...placeholderNodes]
   };
 }
 
 export function updatePlaceholderPreview(doc: JSONContent, blockId: string, preview: string, status = "streaming"): JSONContent {
-  return walkDoc(doc, (node) => {
+  return sanitizeDocumentContent(walkDoc(sanitizeDocumentContent(doc), (node) => {
     if (node.type === "aiPlaceholder" && node.attrs?.blockId === blockId) {
       return {
         ...node,
@@ -163,18 +197,20 @@ export function updatePlaceholderPreview(doc: JSONContent, blockId: string, prev
     }
 
     return node;
-  });
+  }));
 }
 
 export function replacePlaceholderWithNodes(doc: JSONContent, blockId: string, nodes: JSONContent[]): JSONContent {
-  if (!Array.isArray(doc.content)) {
-    return doc;
+  const safeDoc = sanitizeDocumentContent(doc);
+
+  if (!Array.isArray(safeDoc.content)) {
+    return safeDoc;
   }
 
-  return {
-    ...doc,
-    content: replaceNodesInArray(doc.content, blockId, nodes)
-  };
+  return sanitizeDocumentContent({
+    ...safeDoc,
+    content: replaceNodesInArray(safeDoc.content, blockId, nodes)
+  });
 }
 
 function replaceNodesInArray(nodes: JSONContent[], blockId: string, replacement: JSONContent[]): JSONContent[] {
@@ -207,4 +243,37 @@ function walkDoc(node: JSONContent, transform: (node: JSONContent) => JSONConten
     ...next,
     content: next.content.map((child) => walkDoc(child, transform))
   };
+}
+
+function sanitizeNode(node: JSONContent | null | undefined): JSONContent | null {
+  if (!node || typeof node !== "object" || typeof node.type !== "string") {
+    return null;
+  }
+
+  if (node.type === "text") {
+    if (typeof node.text !== "string" || node.text.length === 0) {
+      return null;
+    }
+
+    return {
+      ...node,
+      text: node.text
+    };
+  }
+
+  const nextNode: JSONContent = { ...node };
+
+  if (Array.isArray(node.content)) {
+    const sanitizedChildren = node.content
+      .map((child) => sanitizeNode(child))
+      .filter((child): child is JSONContent => child !== null);
+
+    if (sanitizedChildren.length > 0) {
+      nextNode.content = sanitizedChildren;
+    } else {
+      delete nextNode.content;
+    }
+  }
+
+  return nextNode;
 }

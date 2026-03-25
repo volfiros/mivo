@@ -102,7 +102,7 @@ export function AuthForm({
   return (
     <main className="min-h-screen text-white overflow-hidden relative font-sans">
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 flex min-h-screen flex-col relative z-10">
-        <header className="flex items-center justify-between py-6 border-b border-[var(--border)]/50">
+        <header className="flex flex-wrap items-center justify-between gap-4 py-6 border-b border-[var(--border)]/50">
           <AppNavLink
             href="/"
             className="brand-mark text-3xl md:text-4xl text-white hover:opacity-80 transition-opacity"

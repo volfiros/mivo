@@ -1,7 +1,10 @@
 import { and, asc, desc, eq, inArray, max } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { JSONContent } from "@tiptap/core";
+import { applyPatch } from "fast-json-patch";
+import type { Operation } from "fast-json-patch";
 import { ensureDatabase, getDb } from "@/lib/db";
+import { deleteStoredFile } from "@/lib/storage";
 import {
   attachments,
   documents,
@@ -10,7 +13,7 @@ import {
   generationEvents,
   generationJobs
 } from "@/lib/db/schema";
-import { createEmptyDocument } from "@/lib/schema/editor";
+import { createEmptyDocument, sanitizeDocumentContent } from "@/lib/schema/editor";
 import {
   createVersionRecord,
   type StoredVersion,
@@ -31,6 +34,31 @@ export type OwnedDocumentRecord = Omit<typeof documents.$inferSelect, "currentCo
   versions: DocumentVersionRecord[];
   attachments: AttachmentRecord[];
 };
+
+function toStoredVersion(version: DocumentVersionRecord): StoredVersion {
+  return {
+    ...version,
+    storageMode: version.storageMode as StoredVersion["storageMode"],
+    fullSnapshotJson: version.fullSnapshotJson as JSONContent | null,
+    jsonPatch: (version.jsonPatch as unknown[]) ?? null
+  };
+}
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function isSameDocumentState(
+  leftTitle: string,
+  leftContent: JSONContent,
+  rightTitle: string,
+  rightContent: JSONContent
+) {
+  return (
+    leftTitle === rightTitle &&
+    JSON.stringify(leftContent) === JSON.stringify(rightContent)
+  );
+}
 
 async function getOwnedDocumentSummary(userId: string, documentId: string) {
   await ensureDatabase();
@@ -130,7 +158,7 @@ export async function getOwnedDocument(userId: string, id: string): Promise<Owne
 
   return {
     ...document,
-    currentContentJson: document.currentContentJson as JSONContent,
+    currentContentJson: sanitizeDocumentContent(document.currentContentJson as JSONContent),
     versions,
     attachments: uploads
   };
@@ -160,6 +188,49 @@ export async function getLatestUserDocument(userId: string) {
   return document ?? null;
 }
 
+export async function deleteOwnedDocument(userId: string, documentId: string) {
+  await ensureDatabase();
+  const db = getDb();
+  const document = await getOwnedDocumentSummary(userId, documentId);
+
+  if (!document) {
+    throw new Error("Document not found");
+  }
+
+  const documentAttachments = await db
+    .select({
+      id: attachments.id,
+      storagePath: attachments.storagePath
+    })
+    .from(attachments)
+    .where(eq(attachments.documentId, documentId));
+
+  const jobs = await db
+    .select({
+      id: generationJobs.id
+    })
+    .from(generationJobs)
+    .where(eq(generationJobs.documentId, documentId));
+
+  if (jobs.length) {
+    await db
+      .delete(generationEvents)
+      .where(inArray(generationEvents.jobId, jobs.map((job) => job.id)));
+  }
+
+  await db.delete(generationJobs).where(eq(generationJobs.documentId, documentId));
+  await db.delete(documentVersions).where(eq(documentVersions.documentId, documentId));
+  await db.delete(documentContextChunks).where(eq(documentContextChunks.documentId, documentId));
+  await db.delete(attachments).where(eq(attachments.documentId, documentId));
+  await db
+    .delete(documents)
+    .where(and(eq(documents.id, documentId), eq(documents.ownerUserId, userId)));
+
+  await Promise.all(
+    documentAttachments.map((attachment) => deleteStoredFile(attachment.storagePath))
+  );
+}
+
 export async function saveDocumentContent(params: {
   userId: string;
   documentId: string;
@@ -177,12 +248,27 @@ export async function saveDocumentContent(params: {
     throw new Error("Document not found");
   }
 
+  const nextTitle = params.title ?? current.title;
+  const currentContent = sanitizeDocumentContent(current.currentContentJson);
+  const nextContent = sanitizeDocumentContent(params.content);
+
+  if (
+    isSameDocumentState(
+      current.title,
+      currentContent,
+      nextTitle,
+      nextContent
+    )
+  ) {
+    return current.currentVersionId;
+  }
+
   const latestVersion = current.versions[0];
   const baseVersion = await findCheckpointBase(params.documentId, latestVersion.versionNumber);
   const nextVersion = createVersionRecord({
     checkpointBaseVersion: baseVersion,
     currentVersionNumber: latestVersion.versionNumber,
-    nextDocument: params.content
+    nextDocument: nextContent
   });
   const versionId = nanoid();
 
@@ -205,7 +291,7 @@ export async function saveDocumentContent(params: {
     .update(documents)
     .set({
       title: params.title ?? current.title,
-      currentContentJson: params.content,
+      currentContentJson: nextContent,
       currentVersionId: versionId,
       updatedAt: new Date()
     })
@@ -235,20 +321,78 @@ async function findCheckpointBase(documentId: string, currentVersionNumber: numb
       .limit(1);
 
     return first
-      ? {
-          ...first,
-          storageMode: first.storageMode as StoredVersion["storageMode"],
-          fullSnapshotJson: first.fullSnapshotJson as JSONContent | null,
-          jsonPatch: (first.jsonPatch as unknown[]) ?? null
-        }
+      ? toStoredVersion(first)
       : null;
   }
 
+  return toStoredVersion(version);
+}
+
+export async function getDocumentVersionContent(params: {
+  userId: string;
+  documentId: string;
+  versionId: string;
+}) {
+  await ensureDatabase();
+  const db = getDb();
+  const document = await getOwnedDocumentSummary(params.userId, params.documentId);
+
+  if (!document) {
+    throw new Error("Document not found");
+  }
+
+  const [version] = await db
+    .select()
+    .from(documentVersions)
+    .where(and(eq(documentVersions.documentId, params.documentId), eq(documentVersions.id, params.versionId)))
+    .limit(1);
+
+  if (!version) {
+    throw new Error("Version not found");
+  }
+
+  const hydratedVersion = toStoredVersion(version);
+
+  if (hydratedVersion.storageMode === "snapshot" && hydratedVersion.fullSnapshotJson) {
+    return {
+      ...hydratedVersion,
+      content: sanitizeDocumentContent(hydratedVersion.fullSnapshotJson)
+    };
+  }
+
+  if (!hydratedVersion.baseVersionId || !hydratedVersion.jsonPatch) {
+    throw new Error("Version is missing checkpoint data");
+  }
+
+  const [baseVersion] = await db
+    .select()
+    .from(documentVersions)
+    .where(
+      and(
+        eq(documentVersions.documentId, params.documentId),
+        eq(documentVersions.id, hydratedVersion.baseVersionId)
+      )
+    )
+    .limit(1);
+
+  if (!baseVersion) {
+    throw new Error("Checkpoint version not found");
+  }
+
+  const hydratedBaseVersion = toStoredVersion(baseVersion);
+
+  if (!hydratedBaseVersion.fullSnapshotJson) {
+    throw new Error("Checkpoint snapshot is unavailable");
+  }
+
+  const content = applyPatch(
+    cloneJson(hydratedBaseVersion.fullSnapshotJson),
+    hydratedVersion.jsonPatch as readonly Operation[]
+  ).newDocument as JSONContent;
+
   return {
-    ...version,
-    storageMode: version.storageMode as StoredVersion["storageMode"],
-    fullSnapshotJson: version.fullSnapshotJson as JSONContent | null,
-    jsonPatch: (version.jsonPatch as unknown[]) ?? null
+    ...hydratedVersion,
+    content: sanitizeDocumentContent(content)
   };
 }
 
@@ -423,4 +567,21 @@ export async function getAttachmentContext(params: {
     .limit(8);
 
   return chunks.map((chunk) => chunk.content).join("\n\n");
+}
+
+export async function saveDocumentTitle(params: {
+  userId: string;
+  documentId: string;
+  title: string;
+}) {
+  await ensureDatabase();
+  const db = getDb();
+  
+  await db
+    .update(documents)
+    .set({
+      title: params.title,
+      updatedAt: new Date()
+    })
+    .where(and(eq(documents.id, params.documentId), eq(documents.ownerUserId, params.userId)));
 }

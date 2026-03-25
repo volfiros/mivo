@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { cwd } from "process";
 import mammoth from "mammoth";
@@ -61,4 +61,8 @@ export function chunkText(text: string, chunkSize = 1200) {
 
 export async function readStoredFile(pathname: string) {
   return readFile(pathname);
+}
+
+export async function deleteStoredFile(pathname: string) {
+  await rm(pathname, { force: true });
 }

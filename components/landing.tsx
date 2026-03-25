@@ -62,7 +62,7 @@ export function Landing({
   return (
     <main className="min-h-screen text-white selection:bg-[var(--accent-strong)]/20 overflow-hidden font-sans">
       <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
-        <header className="flex items-center justify-between py-6 border-b border-[var(--border)]/50">
+        <header className="flex flex-wrap items-center justify-between gap-4 py-6 border-b border-[var(--border)]/50">
           <AppNavLink
             href="/"
             className="brand-mark text-3xl md:text-4xl text-white hover:opacity-80 transition-opacity"
@@ -112,13 +112,6 @@ export function Landing({
                 className="w-full sm:w-auto h-12 px-8 text-sm font-medium shadow-[0_0_20px_rgba(47,223,160,0.2)] hover:shadow-[0_0_30px_rgba(47,223,160,0.3)] transition-all"
               >
                 Start Generating
-              </AppButtonLink>
-              <AppButtonLink
-                href={launchHref}
-                tone="ghost"
-                className="w-full sm:w-auto h-12 px-8 text-sm font-medium border border-[var(--border)] hover:bg-[var(--surface-2)]"
-              >
-                View Examples
               </AppButtonLink>
             </div>
           </FadeIn>

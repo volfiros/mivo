@@ -68,7 +68,7 @@ function HeroSectionView({ node, updateAttributes, selected }: BlockProps) {
       <TextArea
         value={node.attrs.title}
         onChange={(title) => updateAttributes({ title })}
-        className="font-display mb-4 text-4xl leading-[0.92]"
+        className="font-ui font-semibold mb-4 text-4xl leading-[0.92]"
       />
       <TextArea
         value={node.attrs.subtitle}
@@ -93,7 +93,7 @@ function TwoColumnView({ node, updateAttributes, selected }: BlockProps) {
           <TextInput
             value={node.attrs.leftTitle}
             onChange={(leftTitle) => updateAttributes({ leftTitle })}
-            className="font-display mb-3 text-2xl"
+            className="font-ui font-semibold mb-3 text-2xl"
           />
           <TextArea value={node.attrs.leftBody} onChange={(leftBody) => updateAttributes({ leftBody })} className="text-sm text-[var(--text-muted)]" />
         </div>
@@ -101,7 +101,7 @@ function TwoColumnView({ node, updateAttributes, selected }: BlockProps) {
           <TextInput
             value={node.attrs.rightTitle}
             onChange={(rightTitle) => updateAttributes({ rightTitle })}
-            className="font-display mb-3 text-2xl"
+            className="font-ui font-semibold mb-3 text-2xl"
           />
           <TextArea
             value={node.attrs.rightBody}
@@ -127,7 +127,7 @@ function ImageWithCopyView({ node, updateAttributes, selected }: BlockProps) {
           <TextInput
             value={node.attrs.title}
             onChange={(title) => updateAttributes({ title })}
-            className="font-display mb-3 text-3xl"
+            className="font-ui font-semibold mb-3 text-3xl"
           />
           <TextArea value={node.attrs.body} onChange={(body) => updateAttributes({ body })} className="text-sm text-[var(--text-muted)]" />
         </div>
@@ -141,7 +141,7 @@ function CalloutView({ node, updateAttributes, selected }: BlockProps) {
     <BlockShell selected={selected}>
       <Label>Callout</Label>
       <TextInput value={node.attrs.label} onChange={(label) => updateAttributes({ label })} className="mb-3 h-11 text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]" />
-      <TextArea value={node.attrs.body} onChange={(body) => updateAttributes({ body })} className="font-display text-3xl leading-tight" />
+      <TextArea value={node.attrs.body} onChange={(body) => updateAttributes({ body })} className="font-ui font-semibold text-3xl leading-tight" />
     </BlockShell>
   );
 }
@@ -150,7 +150,7 @@ function QuoteView({ node, updateAttributes, selected }: BlockProps) {
   return (
     <BlockShell selected={selected}>
       <Label>Quote</Label>
-      <TextArea value={node.attrs.quote} onChange={(quote) => updateAttributes({ quote })} className="font-display text-4xl leading-tight" />
+      <TextArea value={node.attrs.quote} onChange={(quote) => updateAttributes({ quote })} className="font-ui font-semibold text-4xl leading-tight" />
       <TextInput value={node.attrs.attribution} onChange={(attribution) => updateAttributes({ attribution })} className="mt-4 h-11 text-sm text-[var(--text-soft)]" />
     </BlockShell>
   );
@@ -165,7 +165,7 @@ function CtaBannerView({ node, updateAttributes, selected }: BlockProps) {
           <TextInput
             value={node.attrs.title}
             onChange={(title) => updateAttributes({ title })}
-            className="font-display mb-3 text-3xl"
+            className="font-ui font-semibold mb-3 text-3xl"
           />
           <TextArea value={node.attrs.body} onChange={(body) => updateAttributes({ body })} className="text-sm text-[var(--text-muted)]" />
         </div>
@@ -197,7 +197,7 @@ function FeatureGridView({ node, updateAttributes, selected }: BlockProps) {
             <TextInput
               value={node.attrs[titleKey]}
               onChange={(value) => updateAttributes({ [titleKey]: value })}
-              className="font-display mb-3 text-2xl"
+              className="font-ui font-semibold mb-3 text-2xl"
             />
             <TextArea value={node.attrs[bodyKey]} onChange={(value) => updateAttributes({ [bodyKey]: value })} className="text-sm text-[var(--text-muted)]" />
           </AppPanel>
