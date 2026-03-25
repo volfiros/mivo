@@ -40,15 +40,12 @@ export function AccountMenu({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
-        className="group min-w-[168px] flex items-center justify-between gap-3 rounded-xl border border-[var(--border)]/50 bg-[#0A0A0A] px-3 py-2 text-left transition-all duration-300 hover:bg-[#141414] hover:border-[var(--accent-strong)]/30 disabled:cursor-not-allowed disabled:opacity-60 shadow-lg relative overflow-hidden"
+        className="group min-w-[132px] flex min-h-[42px] items-center justify-between gap-3 rounded-xl border border-[var(--border)]/50 bg-[#0A0A0A] px-3 py-2 text-left transition-all duration-300 hover:bg-[#141414] hover:border-[var(--accent-strong)]/30 disabled:cursor-not-allowed disabled:opacity-60 shadow-lg relative overflow-hidden"
       >
         <div className="absolute inset-0 bg-gradient-to-r from-[var(--accent)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-        <div className="min-w-0 relative z-10">
+        <div className="min-w-0 flex-1 relative z-10">
           <p className="truncate text-sm font-medium text-white">
             {user.username}
-          </p>
-          <p className="truncate text-[9px] font-mono uppercase tracking-widest text-[var(--accent-strong)]/80 mt-0.5">
-            {user.email}
           </p>
         </div>
         <div className="w-5 h-5 rounded bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center text-[var(--text-soft)] group-hover:text-[var(--accent-strong)] transition-colors relative z-10 shrink-0">

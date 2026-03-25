@@ -6,6 +6,48 @@ type FeatureItem = {
   body: string;
 };
 
+function compactSectionLabel(label?: string) {
+  const nextLabel = label
+    ?.replace(/[\r\n]+/g, " ")
+    .split(/[:\-–—|]/)[0]
+    ?.replace(/\s+/g, " ")
+    .trim();
+
+  return nextLabel ?? "";
+}
+
+function sectionLabelForBlock(blockType: SemanticBlock["type"], label?: string) {
+  const compact = compactSectionLabel(label);
+
+  switch (blockType) {
+    case "cta_banner":
+      return "CTA";
+    case "hero_section":
+      return "Hero";
+    case "feature_grid":
+      return "Features";
+    case "image_with_copy":
+      return compact || "Visual";
+    case "two_column":
+      return compact || "Positioning";
+    case "callout":
+      return compact || "Callout";
+    case "quote":
+      return "Quote";
+    case "rich_text":
+      return compact || "Announcement";
+  }
+}
+
+function sectionHeaderNode(label: string): JSONContent {
+  return {
+    type: "sectionHeader",
+    attrs: {
+      label
+    }
+  };
+}
+
 function paragraphNode(text: string): JSONContent {
   const content = inlineTextContent(text);
 
@@ -46,16 +88,35 @@ function featureAttrs(items: FeatureItem[]) {
   };
 }
 
-export function blockToNodes(block: SemanticBlock, blockId: string): JSONContent[] {
+function sectionHeaderNodes(label?: string) {
+  const nextLabel = label?.trim();
+
+  if (!nextLabel) {
+    return [];
+  }
+
+  return [sectionHeaderNode(nextLabel)];
+}
+
+export function blockToNodes(
+  block: SemanticBlock,
+  blockId: string,
+  sectionLabel?: string,
+): JSONContent[] {
+  const nextSectionLabel = sectionLabelForBlock(block.type, sectionLabel);
+  const headerNodes = sectionHeaderNodes(nextSectionLabel);
+
   switch (block.type) {
     case "rich_text":
-      return [headingNode(block.heading), ...block.body.map(paragraphNode)];
+      return [...headerNodes, headingNode(block.heading), ...block.body.map(paragraphNode)];
     case "hero_section":
       return [
+        ...headerNodes,
         {
           type: "heroSection",
           attrs: {
             blockId,
+            sectionLabel: nextSectionLabel,
             eyebrow: block.eyebrow,
             title: block.title,
             subtitle: block.subtitle,
@@ -65,10 +126,12 @@ export function blockToNodes(block: SemanticBlock, blockId: string): JSONContent
       ];
     case "two_column":
       return [
+        ...headerNodes,
         {
           type: "twoColumn",
           attrs: {
             blockId,
+            sectionLabel: nextSectionLabel,
             leftTitle: block.leftTitle,
             leftBody: block.leftBody,
             rightTitle: block.rightTitle,
@@ -78,10 +141,12 @@ export function blockToNodes(block: SemanticBlock, blockId: string): JSONContent
       ];
     case "image_with_copy":
       return [
+        ...headerNodes,
         {
           type: "imageWithCopy",
           attrs: {
             blockId,
+            sectionLabel: nextSectionLabel,
             imageUrl: block.imageUrl,
             title: block.title,
             body: block.body
@@ -90,10 +155,12 @@ export function blockToNodes(block: SemanticBlock, blockId: string): JSONContent
       ];
     case "callout":
       return [
+        ...headerNodes,
         {
           type: "calloutBlock",
           attrs: {
             blockId,
+            sectionLabel: nextSectionLabel,
             label: block.label,
             body: block.body
           }
@@ -101,10 +168,12 @@ export function blockToNodes(block: SemanticBlock, blockId: string): JSONContent
       ];
     case "quote":
       return [
+        ...headerNodes,
         {
           type: "quoteBlock",
           attrs: {
             blockId,
+            sectionLabel: nextSectionLabel,
             quote: block.quote,
             attribution: block.attribution
           }
@@ -112,10 +181,12 @@ export function blockToNodes(block: SemanticBlock, blockId: string): JSONContent
       ];
     case "cta_banner":
       return [
+        ...headerNodes,
         {
           type: "ctaBanner",
           attrs: {
             blockId,
+            sectionLabel: nextSectionLabel,
             title: block.title,
             body: block.body,
             actionLabel: block.actionLabel
@@ -124,10 +195,12 @@ export function blockToNodes(block: SemanticBlock, blockId: string): JSONContent
       ];
     case "feature_grid":
       return [
+        ...headerNodes,
         {
           type: "featureGrid",
           attrs: {
             blockId,
+            sectionLabel: nextSectionLabel,
             ...featureAttrs(block.items)
           }
         }
@@ -173,6 +246,7 @@ export function insertPlaceholderNodes(doc: JSONContent, placeholders: Array<{ b
       blockId: placeholder.blockId,
       label: placeholder.label,
       preview: "",
+      previewKind: "plain",
       status: "queued"
     }
   }));
@@ -183,7 +257,15 @@ export function insertPlaceholderNodes(doc: JSONContent, placeholders: Array<{ b
   };
 }
 
-export function updatePlaceholderPreview(doc: JSONContent, blockId: string, preview: string, status = "streaming"): JSONContent {
+export function updatePlaceholderPreview(
+  doc: JSONContent,
+  blockId: string,
+  preview: string,
+  status = "streaming",
+  previewKind?: "plain" | "rich_text"
+): JSONContent {
+  const nextPreviewKind = previewKind ?? "plain";
+
   return sanitizeDocumentContent(walkDoc(sanitizeDocumentContent(doc), (node) => {
     if (node.type === "aiPlaceholder" && node.attrs?.blockId === blockId) {
       return {
@@ -191,6 +273,7 @@ export function updatePlaceholderPreview(doc: JSONContent, blockId: string, prev
         attrs: {
           ...node.attrs,
           preview,
+          previewKind: nextPreviewKind,
           status
         }
       };

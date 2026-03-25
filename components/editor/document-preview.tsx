@@ -55,6 +55,11 @@ type RenderNodeProps = {
   contentType: ContentType;
 };
 
+const sectionLabelClass =
+  "border-b border-[var(--border)] pb-2 text-[0.78rem] font-medium text-[var(--text-soft)]";
+const structuredTitleClass = "text-[1.15rem] font-semibold leading-7 text-white";
+const structuredBodyClass = "text-[0.98rem] leading-7 text-[var(--text-soft)]";
+
 function renderMark(
   type: string,
   content: ReactNode,
@@ -150,6 +155,14 @@ function extractPlainText(content: JSONContent[] | undefined): string {
   );
 }
 
+function ensureText(value: unknown, fallback = "") {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  return fallback.trim();
+}
+
 function RenderNode({ node, contentType }: RenderNodeProps) {
   if (!node.type) {
     return null;
@@ -202,48 +215,70 @@ function RenderNode({ node, contentType }: RenderNodeProps) {
     );
   }
 
+  if (node.type === "sectionHeader") {
+    return (
+      <div className="mb-4 mt-8">
+        <div className={sectionLabelClass}>
+          {ensureText(node.attrs?.label, "Section")}
+        </div>
+      </div>
+    );
+  }
+
   if (node.type === "heroSection") {
-    const eyebrow =
-      typeof node.attrs?.eyebrow === "string" ? node.attrs.eyebrow.trim() : "";
+    const sectionLabel = ensureText(node.attrs?.sectionLabel, "Hero");
+    const eyebrow = ensureText(node.attrs?.eyebrow, sectionLabel);
+    const title = ensureText(node.attrs?.title, sectionLabel);
+    const subtitle = ensureText(
+      node.attrs?.subtitle,
+      "Supporting copy unavailable.",
+    );
+    const actionLabel = ensureText(node.attrs?.actionLabel, "Learn more");
 
     return (
       <section className={`${variant.sectionSpacing} border-b border-[var(--border)] pb-10`}>
         {eyebrow ? (
-          <p className="mb-4 text-sm font-medium text-[var(--text-soft)]">{eyebrow}</p>
+          <p className="mb-3 text-[0.98rem] font-medium leading-7 text-[var(--text-soft)]">{eyebrow}</p>
         ) : null}
-        <h1 className={variant.heroTitle}>{node.attrs?.title}</h1>
-        {node.attrs?.subtitle ? (
-          <p className={`mt-5 ${variant.heroSubtitle}`}>{node.attrs.subtitle}</p>
-        ) : null}
-        {node.attrs?.actionLabel ? (
-          <div className="mt-6">
-            <span className="inline-flex rounded-md border border-[var(--border)] bg-[#141414] px-4 py-2 text-sm text-white">
-              {node.attrs.actionLabel}
-            </span>
-          </div>
-        ) : null}
+        <h1 className={structuredTitleClass}>{title}</h1>
+        <p className={`mt-3 ${structuredBodyClass}`}>{subtitle}</p>
+        <p className="mt-4 text-[0.98rem] font-medium leading-7 text-white">{actionLabel}</p>
       </section>
     );
   }
 
   if (node.type === "twoColumn") {
+    const sectionLabel = ensureText(node.attrs?.sectionLabel, "Two Column");
+    const leftTitle = ensureText(node.attrs?.leftTitle, `${sectionLabel} left`);
+    const leftBody = ensureText(
+      node.attrs?.leftBody,
+      "Supporting copy unavailable.",
+    );
+    const rightTitle = ensureText(node.attrs?.rightTitle, `${sectionLabel} right`);
+    const rightBody = ensureText(
+      node.attrs?.rightBody,
+      "Supporting copy unavailable.",
+    );
+
     return (
       <section className={`${variant.sectionSpacing} grid gap-6 border-t border-[var(--border)] pt-8 md:grid-cols-2`}>
         <div>
-          <h2 className="mb-3 text-2xl font-semibold text-white">{node.attrs?.leftTitle}</h2>
-          <p className={variant.body}>{node.attrs?.leftBody}</p>
+          <h2 className={structuredTitleClass}>{leftTitle}</h2>
+          <p className={`mt-3 ${structuredBodyClass}`}>{leftBody}</p>
         </div>
         <div>
-          <h2 className="mb-3 text-2xl font-semibold text-white">{node.attrs?.rightTitle}</h2>
-          <p className={variant.body}>{node.attrs?.rightBody}</p>
+          <h2 className={structuredTitleClass}>{rightTitle}</h2>
+          <p className={`mt-3 ${structuredBodyClass}`}>{rightBody}</p>
         </div>
       </section>
     );
   }
 
   if (node.type === "imageWithCopy") {
-    const imageUrl =
-      typeof node.attrs?.imageUrl === "string" ? node.attrs.imageUrl.trim() : "";
+    const sectionLabel = ensureText(node.attrs?.sectionLabel, "Image With Copy");
+    const imageUrl = ensureText(node.attrs?.imageUrl);
+    const title = ensureText(node.attrs?.title, sectionLabel);
+    const body = ensureText(node.attrs?.body, "Supporting copy unavailable.");
 
     return (
       <section className={`${variant.sectionSpacing} grid gap-6 border-t border-[var(--border)] pt-8 md:grid-cols-[minmax(0,360px)_minmax(0,1fr)] md:items-start`}>
@@ -261,66 +296,78 @@ function RenderNode({ node, contentType }: RenderNodeProps) {
           )}
         </div>
         <div>
-          <h2 className="mb-4 text-3xl font-semibold tracking-tight text-white">
-            {node.attrs?.title}
-          </h2>
-          <p className={variant.body}>{node.attrs?.body}</p>
+          <h2 className={structuredTitleClass}>{title}</h2>
+          <p className={`mt-3 ${structuredBodyClass}`}>{body}</p>
         </div>
       </section>
     );
   }
 
   if (node.type === "calloutBlock") {
+    const sectionLabel = ensureText(node.attrs?.sectionLabel, "Callout");
+    const label = ensureText(node.attrs?.label, sectionLabel);
+    const body = ensureText(node.attrs?.body, "Supporting copy unavailable.");
+
     return (
       <aside className={`${variant.sectionSpacing} border-l-2 border-[var(--accent-strong)]/70 pl-5`}>
-        <p className="mb-2 text-sm font-medium text-[var(--accent-strong)]">{node.attrs?.label}</p>
-        <p className="text-xl leading-8 text-white">{node.attrs?.body}</p>
+        <p className={structuredTitleClass}>{label}</p>
+        <p className={`mt-3 ${structuredBodyClass}`}>{body}</p>
       </aside>
     );
   }
 
   if (node.type === "quoteBlock") {
+    const sectionLabel = ensureText(node.attrs?.sectionLabel, "Quote");
+    const quote = ensureText(node.attrs?.quote, "Quote unavailable.");
+    const attribution = ensureText(node.attrs?.attribution, sectionLabel);
+
     return (
         <blockquote className={`${variant.sectionSpacing} border-t border-b border-[var(--border)] py-8`}>
-        <p className="text-3xl font-medium leading-tight text-white sm:text-4xl">
-          &quot;{node.attrs?.quote}&quot;
+        <p className={structuredBodyClass}>
+          &quot;{quote}&quot;
         </p>
-        <p className="mt-4 text-sm text-[var(--text-soft)]">{node.attrs?.attribution}</p>
+        <p className={`mt-3 ${structuredTitleClass}`}>{attribution}</p>
       </blockquote>
     );
   }
 
   if (node.type === "ctaBanner") {
+    const sectionLabel = ensureText(node.attrs?.sectionLabel, "CTA");
+    const title = ensureText(node.attrs?.title, sectionLabel);
+    const body = ensureText(node.attrs?.body, "Take the next step.");
+    const actionLabel = ensureText(node.attrs?.actionLabel, "Learn more");
+
     return (
       <section className={`${variant.sectionSpacing} rounded-xl border border-[var(--border)] bg-[#121212] px-6 py-8`}>
-        <h2 className="text-3xl font-semibold tracking-tight text-white">{node.attrs?.title}</h2>
-        <p className={`mt-4 ${variant.body}`}>{node.attrs?.body}</p>
-        {node.attrs?.actionLabel ? (
-          <div className="mt-6">
-            <span className="inline-flex rounded-md bg-white px-4 py-2 text-sm font-medium text-black">
-              {node.attrs.actionLabel}
-            </span>
-          </div>
-        ) : null}
+        <h2 className={structuredTitleClass}>{title}</h2>
+        <p className={`mt-3 ${structuredBodyClass}`}>{body}</p>
+        <p className="mt-4 text-[0.98rem] font-medium leading-7 text-white">{actionLabel}</p>
       </section>
     );
   }
 
   if (node.type === "featureGrid") {
     const items = [
-      [node.attrs?.item1Title, node.attrs?.item1Body],
-      [node.attrs?.item2Title, node.attrs?.item2Body],
-      [node.attrs?.item3Title, node.attrs?.item3Body],
-      [node.attrs?.item4Title, node.attrs?.item4Body]
+      [ensureText(node.attrs?.item1Title), ensureText(node.attrs?.item1Body)],
+      [ensureText(node.attrs?.item2Title), ensureText(node.attrs?.item2Body)],
+      [ensureText(node.attrs?.item3Title), ensureText(node.attrs?.item3Body)],
+      [ensureText(node.attrs?.item4Title), ensureText(node.attrs?.item4Body)]
     ].filter(([title, body]) => title || body);
+
+    const sectionLabel = ensureText(node.attrs?.sectionLabel, "Feature Grid");
+    const displayItems = items.length
+      ? items
+      : [
+          [`${sectionLabel} 1`, "Supporting copy unavailable."],
+          [`${sectionLabel} 2`, "Supporting copy unavailable."],
+        ];
 
     return (
       <section className={`${variant.sectionSpacing} grid gap-4 md:grid-cols-2`}>
-        {items.map(([title, body], index) => (
+        {displayItems.map(([title, body], index) => (
           <div key={`${String(title)}-${index}`} className="rounded-xl border border-[var(--border)] px-5 py-6">
-            <p className="mb-3 text-sm font-medium text-[var(--text-soft)]">{index + 1}</p>
-            <h3 className="mb-3 text-2xl font-semibold tracking-tight text-white">{title}</h3>
-            <p className={variant.body}>{body}</p>
+            <h3 className={structuredTitleClass}>{title}</h3>
+            <p className={`mt-3 ${structuredBodyClass}`}>{body}</p>
           </div>
         ))}
       </section>

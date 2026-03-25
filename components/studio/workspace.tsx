@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -66,7 +66,13 @@ type StreamEvent =
     }
   | {
       type: "block.preview_delta";
-      payload: { blockId: string; preview: string };
+      payload: {
+        blockId: string;
+        delta?: string;
+        preview?: string;
+        previewKind?: "plain" | "rich_text";
+        replace?: boolean;
+      };
     }
   | {
       type: "block.completed";
@@ -93,15 +99,177 @@ function formatDate(value: string | Date) {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`;
 }
 
-function createSnapshotKey(title: string, content: JSONContent) {
-  return JSON.stringify({
-    title,
-    content,
-  });
-}
-
 function cloneContent<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function canonicalizeSnapshotValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    const nextItems = value
+      .map((item) => canonicalizeSnapshotValue(item))
+      .filter((item) => item !== undefined);
+
+    return nextItems;
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .map(([key, entryValue]) => [key, canonicalizeSnapshotValue(entryValue)] as const)
+      .filter(([key, entryValue]) => {
+        if (entryValue === undefined || entryValue === null) {
+          return false;
+        }
+
+        if (entryValue === "") {
+          return false;
+        }
+
+        if (
+          Array.isArray(entryValue) &&
+          entryValue.length === 0 &&
+          (key === "marks" || key === "content")
+        ) {
+          return false;
+        }
+
+        if (
+          !Array.isArray(entryValue) &&
+          typeof entryValue === "object" &&
+          Object.keys(entryValue).length === 0
+        ) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort(([left], [right]) => left.localeCompare(right));
+
+    return Object.fromEntries(entries);
+  }
+
+  return value;
+}
+
+function createContentSnapshotKey(content: JSONContent) {
+  const safeContent = sanitizeDocumentContent(cloneContent(content));
+  return JSON.stringify(canonicalizeSnapshotValue(safeContent));
+}
+
+function fillAttr(value: unknown, fallback?: string) {
+  if (typeof value === "string" && value.trim()) {
+    return value;
+  }
+
+  return fallback?.trim() ?? "";
+}
+
+function hydrateCompletedNodesFromPreview(
+  nodes: JSONContent[],
+  cachedPreview?: { preview: string; previewKind: "plain" | "rich_text" },
+) {
+  if (!nodes.length || !cachedPreview?.preview.trim()) {
+    return nodes;
+  }
+
+  const sections = cachedPreview.preview
+    .split(/\n{2,}/)
+    .map((section) => section.trim())
+    .filter(Boolean);
+
+  if (!sections.length) {
+    return nodes;
+  }
+
+  return nodes.map((node, index) => {
+    if (index !== 0 || !node.attrs || typeof node.type !== "string") {
+      return node;
+    }
+
+    switch (node.type) {
+      case "ctaBanner":
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            title: fillAttr(node.attrs.title, sections[0]),
+            body: fillAttr(node.attrs.body, sections[1]),
+            actionLabel: fillAttr(node.attrs.actionLabel, sections[2] ?? sections[0]),
+          },
+        };
+      case "heroSection":
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            title: fillAttr(node.attrs.title, sections[0]),
+            subtitle: fillAttr(node.attrs.subtitle, sections[1]),
+            actionLabel: fillAttr(node.attrs.actionLabel, sections[2]),
+          },
+        };
+      case "twoColumn":
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            leftTitle: fillAttr(node.attrs.leftTitle, sections[0]),
+            leftBody: fillAttr(node.attrs.leftBody, sections[1]),
+            rightTitle: fillAttr(node.attrs.rightTitle, sections[2]),
+            rightBody: fillAttr(node.attrs.rightBody, sections[3]),
+          },
+        };
+      case "imageWithCopy":
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            title: fillAttr(node.attrs.title, sections[0]),
+            body: fillAttr(node.attrs.body, sections[1]),
+          },
+        };
+      case "calloutBlock":
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            label: fillAttr(node.attrs.label, sections[0]),
+            body: fillAttr(node.attrs.body, sections[1]),
+          },
+        };
+      case "quoteBlock":
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            quote: fillAttr(node.attrs.quote, sections[0]),
+            attribution: fillAttr(node.attrs.attribution, sections[1]),
+          },
+        };
+      case "featureGrid": {
+        const pairs = [];
+
+        for (let cursor = 0; cursor < sections.length; cursor += 2) {
+          pairs.push([sections[cursor], sections[cursor + 1]]);
+        }
+
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            item1Title: fillAttr(node.attrs.item1Title, pairs[0]?.[0]),
+            item1Body: fillAttr(node.attrs.item1Body, pairs[0]?.[1]),
+            item2Title: fillAttr(node.attrs.item2Title, pairs[1]?.[0]),
+            item2Body: fillAttr(node.attrs.item2Body, pairs[1]?.[1]),
+            item3Title: fillAttr(node.attrs.item3Title, pairs[2]?.[0]),
+            item3Body: fillAttr(node.attrs.item3Body, pairs[2]?.[1]),
+            item4Title: fillAttr(node.attrs.item4Title, pairs[3]?.[0]),
+            item4Body: fillAttr(node.attrs.item4Body, pairs[3]?.[1]),
+          },
+        };
+      }
+      default:
+        return node;
+    }
+  });
 }
 
 export function Workspace({
@@ -115,25 +283,35 @@ export function Workspace({
 }) {
   const router = useRouter();
   const streamRef = useRef<EventSource | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const previewCacheRef = useRef<
+    Record<string, { preview: string; previewKind: "plain" | "rich_text" }>
+  >({});
   const [archiveItems, setArchiveItems] = useState(draftHistory);
   const [serverTitle, setServerTitle] = useState(document.title);
   const [title, setTitle] = useState(document.title);
-
-  if (document.title !== serverTitle) {
-    setServerTitle(document.title);
-    setTitle(document.title);
-  }
   const [prompt, setPrompt] = useState("");
   const [rewritePrompt, setRewritePrompt] = useState("");
-  const [savedSnapshotKey, setSavedSnapshotKey] = useState(() =>
-    createSnapshotKey(document.title, document.currentContentJson),
+  const [savedContentSnapshotKey, setSavedContentSnapshotKey] = useState(() =>
+    createContentSnapshotKey(document.currentContentJson),
   );
   const [isDirty, setIsDirty] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [savingTitle, setSavingTitle] = useState(false);
   const [savingVersion, setSavingVersion] = useState(false);
+  const [startingGeneration, setStartingGeneration] = useState(false);
+  const [rewritingSelection, setRewritingSelection] = useState(false);
+  const [cancellingGeneration, setCancellingGeneration] = useState(false);
   const [overallStatus, setOverallStatus] = useState(document.status);
   const [attachmentIds, setAttachmentIds] = useState<string[]>(
     document.attachments.map((attachment) => attachment.id),
+  );
+  const [latestVersionId, setLatestVersionId] = useState<string | null>(
+    document.currentVersionId,
+  );
+  const [latestVersionNumber, setLatestVersionNumber] = useState<number | null>(
+    document.versions.find((version) => version.id === document.currentVersionId)
+      ?.versionNumber ?? null,
   );
   const [activeVersionId, setActiveVersionId] = useState<string | null>(
     document.currentVersionId,
@@ -150,6 +328,7 @@ export function Workspace({
   const [blockStatus, setBlockStatus] = useState<Record<string, string>>({});
   const [selectionText, setSelectionText] = useState("");
   const [busyUpload, setBusyUpload] = useState(false);
+  const [isLeftRailOpen, setIsLeftRailOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -157,7 +336,8 @@ export function Workspace({
     onConfirm: () => void;
   }>({ isOpen: false, title: "", message: "", onConfirm: () => {} });
   const isViewingHistoricalVersion =
-    activeVersionId !== null && activeVersionId !== document.currentVersionId;
+    activeVersionId !== null && activeVersionId !== latestVersionId;
+  const previousLatestVersionIdRef = useRef<string | null>(document.currentVersionId);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -180,41 +360,55 @@ export function Workspace({
   }, [draftHistory]);
 
   useEffect(() => {
+    if (document.title === serverTitle) {
+      return;
+    }
+
+    setServerTitle(document.title);
+    setTitle(document.title);
+  }, [document.title, serverTitle]);
+
+  useEffect(() => {
     if (!editor) {
       return;
     }
 
-    editor.setEditable(activeVersionId === document.currentVersionId);
-  }, [activeVersionId, document.currentVersionId, editor]);
+    const nextEditable = activeVersionId === latestVersionId;
+    const schedule =
+      typeof queueMicrotask === "function"
+        ? queueMicrotask
+        : (callback: () => void) => {
+            setTimeout(callback, 0);
+          };
+
+    schedule(() => {
+      editor.setEditable(nextEditable);
+    });
+  }, [activeVersionId, latestVersionId, editor]);
 
   useEffect(() => {
-    if (!document.currentVersionId) {
-      return;
-    }
-
-    const nextSavedSnapshotKey = createSnapshotKey(
-      document.title,
+    const nextLatestVersionId = document.currentVersionId;
+    const nextLatestVersionNumber =
+      document.versions.find((version) => version.id === document.currentVersionId)
+        ?.versionNumber ?? null;
+    const nextSavedContentSnapshotKey = createContentSnapshotKey(
       document.currentContentJson,
     );
 
-    if (!isViewingHistoricalVersion) {
-      setSavedSnapshotKey(nextSavedSnapshotKey);
-    }
+    setLatestVersionId(nextLatestVersionId);
+    setLatestVersionNumber(nextLatestVersionNumber);
 
-    if (activeVersionId === null || activeVersionId === document.currentVersionId) {
-      setActiveVersionId(document.currentVersionId);
+    if (!isViewingHistoricalVersion) {
+      setSavedContentSnapshotKey(nextSavedContentSnapshotKey);
+      setActiveVersionId(nextLatestVersionId);
       setActiveVersionNumber(
-        document.versions.find((version) => version.id === document.currentVersionId)
-          ?.versionNumber ?? null,
+        nextLatestVersionNumber,
       );
       setVersionLoadError("");
     }
   }, [
-    activeVersionId,
-    editor,
     document.currentVersionId,
     document.currentContentJson,
-    document.title,
     document.versions,
     isViewingHistoricalVersion,
   ]);
@@ -226,7 +420,9 @@ export function Workspace({
     }
 
     const updateDirtyState = () => {
-      setIsDirty(createSnapshotKey(title, editor.getJSON()) !== savedSnapshotKey);
+      setIsDirty(
+        createContentSnapshotKey(editor.getJSON()) !== savedContentSnapshotKey,
+      );
     };
 
     updateDirtyState();
@@ -235,15 +431,17 @@ export function Workspace({
     return () => {
       editor.off("update", updateDirtyState);
     };
-  }, [editor, isViewingHistoricalVersion, savedSnapshotKey, title]);
+  }, [editor, isViewingHistoricalVersion, savedContentSnapshotKey]);
 
   useEffect(() => {
     if (!editor || isViewingHistoricalVersion) {
       return;
     }
 
-    setIsDirty(createSnapshotKey(title, editor.getJSON()) !== savedSnapshotKey);
-  }, [editor, isViewingHistoricalVersion, savedSnapshotKey, title]);
+    setIsDirty(
+      createContentSnapshotKey(editor.getJSON()) !== savedContentSnapshotKey,
+    );
+  }, [editor, isViewingHistoricalVersion, savedContentSnapshotKey]);
 
   useEffect(() => {
     if (!editor) {
@@ -314,7 +512,7 @@ export function Workspace({
     streamRef.current = null;
   }
 
-  function applyCanvasContent(nextContent: JSONContent, context: string) {
+  const applyCanvasContent = useCallback((nextContent: JSONContent, context: string) => {
     if (!editor) {
       return false;
     }
@@ -340,11 +538,177 @@ export function Workspace({
       editor.commands.setContent(createEmptyDocument(), false);
       return false;
     }
+  }, [editor]);
+
+  function updatePlaceholderPreviewInEditor(
+    blockId: string,
+    preview: string,
+    status = "streaming",
+    previewKind: "plain" | "rich_text" = "plain",
+  ) {
+    if (!editor) {
+      return false;
+    }
+
+    let targetPosition: number | null = null;
+    let targetAttrs: Record<string, unknown> | null = null;
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "aiPlaceholder" && node.attrs.blockId === blockId) {
+        targetPosition = pos;
+        targetAttrs = node.attrs as Record<string, unknown>;
+        return false;
+      }
+
+      return true;
+    });
+
+    if (targetPosition === null || !targetAttrs) {
+      return false;
+    }
+
+    try {
+      const nextAttrs = targetAttrs as Record<string, unknown>;
+      const transaction = editor.state.tr
+        .setMeta("addToHistory", false)
+        .setNodeMarkup(targetPosition, undefined, {
+          ...nextAttrs,
+          preview,
+          previewKind,
+          status,
+        });
+
+      editor.view.dispatch(transaction);
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown editor error";
+      setVersionLoadError(`Unable to update block preview ${blockId}: ${message}`);
+      return false;
+    }
   }
 
+  function replacePlaceholderWithNodesInEditor(
+    blockId: string,
+    nodes: JSONContent[],
+  ) {
+    if (!editor) {
+      return false;
+    }
+
+    let targetPosition: number | null = null;
+    let targetSize = 0;
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "aiPlaceholder" && node.attrs.blockId === blockId) {
+        targetPosition = pos;
+        targetSize = node.nodeSize;
+        return false;
+      }
+
+      return true;
+    });
+
+    if (targetPosition === null) {
+      return false;
+    }
+
+    try {
+      const replacementNodes = nodes.map((node) =>
+        editor.state.schema.nodeFromJSON(cloneContent(node)),
+      );
+      const transaction = editor.state.tr
+        .setMeta("addToHistory", false)
+        .replaceWith(
+          targetPosition,
+          targetPosition + targetSize,
+          replacementNodes,
+        );
+
+      editor.view.dispatch(transaction);
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown editor error";
+      setVersionLoadError(`Unable to finalize block ${blockId}: ${message}`);
+      return false;
+    }
+  }
+
+  function renderBusyButtonLabel(label: string) {
+    return (
+      <span className="inline-flex items-center gap-2">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          className="animate-spin"
+          aria-hidden="true"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+            stroke="currentColor"
+            strokeOpacity="0.3"
+            strokeWidth="2"
+          />
+          <path
+            d="M21 12a9 9 0 0 0-9-9"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </svg>
+        <span>{label}</span>
+      </span>
+    );
+  }
+
+  const resetDirtyStateToCurrentCanvas = useCallback(() => {
+    if (!editor) {
+      return;
+    }
+
+    const nextSnapshotKey = createContentSnapshotKey(editor.getJSON());
+    setSavedContentSnapshotKey(nextSnapshotKey);
+    setIsDirty(false);
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor || isViewingHistoricalVersion) {
+      previousLatestVersionIdRef.current = document.currentVersionId;
+      return;
+    }
+
+    const previousLatestVersionId = previousLatestVersionIdRef.current;
+    previousLatestVersionIdRef.current = document.currentVersionId;
+
+    if (
+      !document.currentVersionId ||
+      document.currentVersionId === previousLatestVersionId
+    ) {
+      return;
+    }
+
+    if (applyCanvasContent(document.currentContentJson, "the latest version")) {
+      setTimeout(() => {
+        resetDirtyStateToCurrentCanvas();
+      }, 0);
+    }
+  }, [
+    applyCanvasContent,
+    document.currentVersionId,
+    document.currentContentJson,
+    editor,
+    isViewingHistoricalVersion,
+    resetDirtyStateToCurrentCanvas,
+  ]);
+
   async function handleSaveTitle() {
-    if (title === document.title || isViewingHistoricalVersion) return;
-    setIsProcessing(true);
+    if (title === serverTitle || isViewingHistoricalVersion) return;
+    setSavingTitle(true);
     try {
       const response = await fetch(`/api/documents/${document.id}/title`, {
         method: "PATCH",
@@ -354,12 +718,12 @@ export function Workspace({
 
       if (!response.ok) throw new Error("Failed to save title");
 
-      setSavedSnapshotKey(createSnapshotKey(title, document.currentContentJson));
+      setServerTitle(title);
       router.refresh();
     } catch (error) {
       console.error(error);
     } finally {
-      setIsProcessing(false);
+      setSavingTitle(false);
     }
   }
 
@@ -370,11 +734,10 @@ export function Workspace({
 
     const draft = getCurrentDraft();
 
-    if (createSnapshotKey(draft.title, draft.content) === savedSnapshotKey) {
+    if (createContentSnapshotKey(draft.content) === savedContentSnapshotKey) {
       return;
     }
 
-    setIsProcessing(true);
     setSavingVersion(true);
     setSaveVersionError("");
 
@@ -384,7 +747,9 @@ export function Workspace({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(draft),
+        body: JSON.stringify({
+          content: draft.content,
+        }),
       });
       const payload = (await response.json()) as {
         versionId?: string | null;
@@ -395,8 +760,18 @@ export function Workspace({
         throw new Error(payload.error ?? "Unable to create version");
       }
 
-      setSavedSnapshotKey(createSnapshotKey(draft.title, draft.content));
-      setIsDirty(false);
+      const nextVersionId = payload.versionId ?? latestVersionId;
+      const nextVersionNumber =
+        Math.max(
+          latestVersionNumber ?? -1,
+          ...document.versions.map((version) => version.versionNumber),
+        ) + 1;
+
+      setLatestVersionId(nextVersionId);
+      setLatestVersionNumber(nextVersionNumber);
+      setActiveVersionId(nextVersionId);
+      setActiveVersionNumber(nextVersionNumber);
+      resetDirtyStateToCurrentCanvas();
       router.refresh();
     } catch (error) {
       setSaveVersionError(
@@ -408,31 +783,54 @@ export function Workspace({
   }
 
   async function handleGenerate() {
-    if (!editor || savingVersion || isViewingHistoricalVersion) {
+    if (
+      !editor ||
+      savingVersion ||
+      isViewingHistoricalVersion ||
+      startingGeneration
+    ) {
       return;
     }
 
-    const draft = getCurrentDraft();
-    const response = await fetch("/api/generations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        documentId: document.id,
-        prompt,
-        contentType: document.contentType,
-        attachmentIds,
-        title: draft.title,
-        draftContent: draft.content,
-      }),
-    });
+    setStartingGeneration(true);
+    setVersionLoadError("");
 
-    const payload = await response.json();
+    try {
+      const draft = getCurrentDraft();
+      const response = await fetch("/api/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          documentId: document.id,
+          prompt,
+          contentType: document.contentType,
+          attachmentIds,
+          title: draft.title,
+          draftContent: draft.content,
+        }),
+      });
+      const payload = (await response.json()) as {
+        jobId?: string;
+        error?: string;
+      };
 
-    setJobId(payload.jobId);
-    setOverallStatus("generating");
-    subscribeToStream(payload.jobId);
+      if (!response.ok || !payload.jobId) {
+        throw new Error(payload.error ?? "Unable to start generation");
+      }
+
+      setJobId(payload.jobId);
+      setOverallStatus("generating");
+      subscribeToStream(payload.jobId);
+    } catch (error) {
+      setVersionLoadError(
+        error instanceof Error ? error.message : "Unable to start generation.",
+      );
+      setOverallStatus("ready");
+    } finally {
+      setStartingGeneration(false);
+    }
   }
 
   async function handleLoadVersion(version: VersionRecord) {
@@ -440,15 +838,18 @@ export function Workspace({
       return;
     }
 
-    if (version.id === document.currentVersionId) {
-      setActiveVersionId(document.currentVersionId);
-      setActiveVersionNumber(version.versionNumber);
+    if (version.id === latestVersionId) {
+      setActiveVersionId(latestVersionId);
+      setActiveVersionNumber(latestVersionNumber ?? version.versionNumber);
       setVersionLoadError("");
       setSaveVersionError("");
       setBlockStatus({});
       setTitle(document.title);
-      setIsDirty(false);
-      applyCanvasContent(document.currentContentJson, "the latest version");
+      if (applyCanvasContent(document.currentContentJson, "the latest version")) {
+        setTimeout(() => {
+          resetDirtyStateToCurrentCanvas();
+        }, 0);
+      }
       return;
     }
 
@@ -525,6 +926,7 @@ export function Workspace({
 
       if (parsed.type === "outline.ready") {
         setTitle(parsed.payload.title);
+        previewCacheRef.current = {};
         const nextDoc = insertPlaceholderNodes(
           editor.getJSON(),
           parsed.payload.placeholders,
@@ -541,61 +943,116 @@ export function Workspace({
       }
 
       if (parsed.type === "block.preview_delta") {
-        setBlockStatus((current) => ({
-          ...current,
-          [parsed.payload.blockId]: "streaming",
-        }));
-        applyCanvasContent(
-          updatePlaceholderPreview(
-            editor.getJSON(),
+        const previousPreview =
+          previewCacheRef.current[parsed.payload.blockId]?.preview ?? "";
+        const nextPreview =
+          parsed.payload.replace || typeof parsed.payload.preview === "string"
+            ? parsed.payload.preview ?? ""
+            : previousPreview + (parsed.payload.delta ?? "");
+        const nextPreviewKind = parsed.payload.previewKind ?? "plain";
+
+        previewCacheRef.current[parsed.payload.blockId] = {
+          preview: nextPreview,
+          previewKind: nextPreviewKind,
+        };
+        setBlockStatus((current) => {
+          if (current[parsed.payload.blockId] === "streaming") {
+            return current;
+          }
+
+          return {
+            ...current,
+            [parsed.payload.blockId]: "streaming",
+          };
+        });
+        if (
+          !updatePlaceholderPreviewInEditor(
             parsed.payload.blockId,
-            parsed.payload.preview,
-          ),
-          `block preview ${parsed.payload.blockId}`,
-        );
+            nextPreview,
+            "streaming",
+            nextPreviewKind,
+          )
+        ) {
+          applyCanvasContent(
+            updatePlaceholderPreview(
+              editor.getJSON(),
+              parsed.payload.blockId,
+              nextPreview,
+              "streaming",
+              nextPreviewKind,
+            ),
+            `block preview ${parsed.payload.blockId}`,
+          );
+        }
       }
 
       if (parsed.type === "block.completed") {
+        const hydratedNodes = hydrateCompletedNodesFromPreview(
+          parsed.payload.nodes,
+          previewCacheRef.current[parsed.payload.blockId],
+        );
         setBlockStatus((current) => ({
           ...current,
           [parsed.payload.blockId]: "completed",
         }));
-        applyCanvasContent(
-          replacePlaceholderWithNodes(
-            editor.getJSON(),
+        if (
+          !replacePlaceholderWithNodesInEditor(
             parsed.payload.blockId,
-            parsed.payload.nodes,
-          ),
-          `block ${parsed.payload.blockId}`,
-        );
+            hydratedNodes,
+          )
+        ) {
+          applyCanvasContent(
+            replacePlaceholderWithNodes(
+              editor.getJSON(),
+              parsed.payload.blockId,
+              hydratedNodes,
+            ),
+            `block ${parsed.payload.blockId}`,
+          );
+        }
+        delete previewCacheRef.current[parsed.payload.blockId];
       }
 
       if (parsed.type === "block.failed") {
+        previewCacheRef.current[parsed.payload.blockId] = {
+          preview: parsed.payload.error,
+          previewKind: "plain",
+        };
         setBlockStatus((current) => ({
           ...current,
           [parsed.payload.blockId]: "failed",
         }));
-        applyCanvasContent(
-          updatePlaceholderPreview(
-            editor.getJSON(),
+        if (
+          !updatePlaceholderPreviewInEditor(
             parsed.payload.blockId,
             parsed.payload.error,
             "failed",
-          ),
-          `failed block ${parsed.payload.blockId}`,
-        );
+          )
+        ) {
+          applyCanvasContent(
+            updatePlaceholderPreview(
+              editor.getJSON(),
+              parsed.payload.blockId,
+              parsed.payload.error,
+              "failed",
+            ),
+            `failed block ${parsed.payload.blockId}`,
+          );
+        }
       }
 
       if (parsed.type === "generation.completed") {
         setOverallStatus("ready");
-        setActiveVersionId(document.currentVersionId);
-        setActiveVersionNumber(null);
+        setActiveVersionId(latestVersionId);
+        setActiveVersionNumber(latestVersionNumber);
+        previewCacheRef.current = {};
         closeActiveStream();
         router.refresh();
       }
 
       if (parsed.type === "generation.cancelled") {
         setOverallStatus("cancelled");
+        previewCacheRef.current = {};
         closeActiveStream();
       }
     };
@@ -606,12 +1063,18 @@ export function Workspace({
       return;
     }
 
-    await fetch(`/api/generations/${jobId}/cancel`, {
-      method: "POST",
-    });
+    setCancellingGeneration(true);
 
-    setOverallStatus("cancelled");
-    closeActiveStream();
+    try {
+      await fetch(`/api/generations/${jobId}/cancel`, {
+        method: "POST",
+      });
+
+      setOverallStatus("cancelled");
+      closeActiveStream();
+    } finally {
+      setCancellingGeneration(false);
+    }
   }
 
   function handleNavigation(target: string) {
@@ -657,21 +1120,26 @@ export function Workspace({
       return;
     }
 
-    const response = await fetch(`/api/documents/${document.id}/revisions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        documentId: document.id,
-        instruction: rewritePrompt,
-        selectionText,
-      }),
-    });
+    setRewritingSelection(true);
 
-    const payload = await response.json();
-    editor.chain().focus().insertContent(payload.replacement).run();
-    setRewritePrompt("");
+    try {
+      const response = await fetch(`/api/documents/${document.id}/revisions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          documentId: document.id,
+          instruction: rewritePrompt,
+          selectionText,
+        }),
+      });
+      const payload = await response.json();
+      editor.chain().focus().insertContent(payload.replacement).run();
+      setRewritePrompt("");
+    } finally {
+      setRewritingSelection(false);
+    }
   }
 
   async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
@@ -735,6 +1203,7 @@ export function Workspace({
       );
     } finally {
       setDeletingDraftId(null);
+      setIsProcessing(false);
     }
   }
 
@@ -765,12 +1234,21 @@ export function Workspace({
           </div>
         </div>
       ) : null}
-      <aside className="studio-rail border-r border-[var(--border)]/50 px-5 py-6 md:px-6 bg-[#0A0A0A]/80 backdrop-blur-xl relative z-10 h-full overflow-y-auto pb-10">
-        <div className="mb-8 flex">
+      {isLeftRailOpen ? (
+        <>
           <button
             type="button"
-            onClick={() => handleNavigation("/")}
-            className="group flex items-center justify-center w-8 h-8 rounded-lg border border-[var(--border)] bg-[#141414] hover:bg-[#1a1a1a] hover:border-[var(--accent-strong)]/50 text-[var(--text-soft)] hover:text-[var(--accent-strong)] transition-all duration-300 hover:shadow-[0_0_15px_rgba(47,223,160,0.15)]"
+            aria-label="Close workspace menu"
+            onClick={() => setIsLeftRailOpen(false)}
+            className="absolute inset-0 z-30 bg-black/45 backdrop-blur-[2px]"
+          />
+          <aside className="studio-rail absolute inset-y-0 left-0 z-40 w-[360px] max-w-[calc(100vw-1.5rem)] border-r border-[var(--border)]/50 px-5 py-6 md:px-6 bg-[#0A0A0A]/92 backdrop-blur-xl overflow-y-auto pb-10 shadow-[24px_0_60px_rgba(0,0,0,0.45)]">
+      <div className="mb-8 flex items-center justify-between gap-3">
+          <div />
+          <button
+            type="button"
+            onClick={() => setIsLeftRailOpen(false)}
+            className="group flex items-center justify-center w-8 h-8 rounded-lg border border-[var(--border)] bg-[#141414] hover:bg-[#1a1a1a] hover:border-[var(--accent-strong)]/50 text-[var(--text-soft)] hover:text-[var(--accent-strong)] transition-all duration-300"
           >
             <svg
               width="14"
@@ -781,10 +1259,9 @@ export function Workspace({
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="group-hover:-translate-x-0.5 transition-transform duration-300"
             >
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
           </button>
         </div>
@@ -797,16 +1274,6 @@ export function Workspace({
               <p className="font-display text-4xl capitalize text-white">
                 {document.contentType.replace("_", " ")}
               </p>
-              <StatusBadge status={overallStatus} />
-              {isViewingHistoricalVersion && activeVersionNumber !== null ? (
-                <StatusBadge
-                  status="ready"
-                  label={`viewing v${activeVersionNumber}`}
-                />
-              ) : null}
-              {isDirty && !isViewingHistoricalVersion ? (
-                <StatusBadge status="queued" label="unsaved" />
-              ) : null}
             </div>
             <p className="mt-4 text-sm leading-6 text-[var(--text-muted)]">
               Persisted document state with checkpointed version history and
@@ -958,7 +1425,7 @@ export function Workspace({
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-white">
                         v{version.versionNumber}
-                        {version.id === document.currentVersionId ? " current" : ""}
+                        {version.id === latestVersionId ? " current" : ""}
                       </p>
                       <p className="mt-1 text-[10px] uppercase tracking-wider text-[var(--text-soft)]">
                         {formatDate(version.createdAt)}
@@ -984,30 +1451,52 @@ export function Workspace({
                   {document.attachments.map((attachment) => (
                     <div
                       key={attachment.id}
-                      className="p-3 rounded-xl border border-[var(--border)] bg-[#141414] hover:border-[var(--border-strong)] transition-colors flex items-center gap-3"
+                      className="group relative box-border grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)] items-stretch overflow-hidden rounded-xl border border-[var(--border)]/50 bg-[#0A0A0A] transition-all duration-300 hover:bg-[#141414] hover:border-[var(--border-strong)]"
                     >
-                      <div className="p-2 rounded bg-[var(--accent)]/10 border border-[var(--accent)]/20">
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="var(--accent-strong)"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <polyline points="14 2 14 8 20 8" />
-                        </svg>
+                      <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-xl">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[var(--accent-strong)]/6 to-transparent -translate-x-[100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                       </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-white">
-                          {attachment.filename}
-                        </p>
-                        <p className="mt-1 text-[10px] uppercase tracking-wider text-[var(--text-soft)]">
-                          {attachment.mimeType}
-                        </p>
+                      <div className="relative z-20 min-w-0 overflow-hidden px-3.5 py-3 text-left">
+                        <div className="flex min-w-0 items-start gap-3">
+                        <div className="shrink-0 rounded-lg border border-[var(--accent)]/20 bg-[var(--accent)]/10 p-2">
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="var(--accent-strong)"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                          </svg>
+                        </div>
+                          <div className="min-w-0 flex-1 overflow-hidden">
+                          <div className="flex min-w-0 items-center justify-between gap-3">
+                            <p
+                                className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap pr-2 text-sm font-semibold tracking-tight text-[var(--text-soft)] transition-colors group-hover:text-white"
+                              title={attachment.filename}
+                            >
+                              {attachment.filename}
+                            </p>
+                            <StatusBadge
+                              status="ready"
+                              label="grounded"
+                              className="shrink-0 px-1.5 py-0.5 text-[9px] shadow-sm"
+                            />
+                          </div>
+                          <div className="mt-2 flex min-w-0 items-center gap-2">
+                            <span className="rounded border border-[var(--border)] bg-[#141414] px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-widest text-[var(--text-muted)]">
+                              {attachment.mimeType}
+                            </span>
+                            <p className="truncate text-[9px] font-mono uppercase tracking-widest text-[var(--text-muted)]">
+                              {formatDate(attachment.createdAt).split(" ")[0]}
+                            </p>
+                          </div>
+                        </div>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1023,16 +1512,83 @@ export function Workspace({
           </div>
         </div>
       </aside>
+        </>
+      ) : null}
 
       <section className="px-5 py-6 md:px-8 relative z-10 h-full flex flex-col min-h-0">
         <div className="w-full flex-1 flex flex-col min-h-0 space-y-5">
           <div className="flex flex-col gap-4 pb-2 shrink-0 w-full">
             <div className="min-w-0 flex-1 w-full">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-md mb-4">
-                <div className="w-2 h-2 rounded-full bg-[var(--accent-strong)] animate-pulse shadow-[0_0_8px_var(--accent-strong)]" />
-                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-soft)]">
-                  Live Workspace
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleNavigation("/")}
+                    className="group flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[#141414] text-[var(--text-soft)] transition-all duration-300 hover:border-[var(--accent-strong)]/40 hover:bg-[#1a1a1a] hover:text-[var(--accent-strong)]"
+                    aria-label="Back to studio"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="transition-transform duration-300 group-hover:-translate-x-0.5"
+                    >
+                      <line x1="19" y1="12" x2="5" y2="12"></line>
+                      <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsLeftRailOpen(true)}
+                    className="group flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[#141414] text-[var(--text-soft)] transition-all duration-300 hover:border-[var(--accent-strong)]/40 hover:bg-[#1a1a1a] hover:text-[var(--accent-strong)]"
+                    aria-label="Open workspace menu"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="3" y1="6" x2="21" y2="6"></line>
+                      <line x1="3" y1="12" x2="21" y2="12"></line>
+                      <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                  </button>
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-md">
+                    <div className="w-2 h-2 rounded-full bg-[var(--accent-strong)] animate-pulse shadow-[0_0_8px_var(--accent-strong)]" />
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-soft)]">
+                      Live Workspace
+                    </span>
+                  </div>
+                </div>
+                <AccountMenu
+                  user={user}
+                  disabled={overallStatus === "generating" || savingVersion}
+                />
+              </div>
+              <div className="mb-4 flex flex-wrap items-center gap-3">
+                <span className="rounded-full border border-[var(--border)] bg-[#111111] px-3 py-1 text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-soft)]">
+                  {document.contentType.replace("_", " ")}
                 </span>
+                <StatusBadge status={overallStatus} />
+                {isViewingHistoricalVersion && activeVersionNumber !== null ? (
+                  <StatusBadge
+                    status="ready"
+                    label={`viewing v${activeVersionNumber}`}
+                  />
+                ) : null}
+                {isDirty && !isViewingHistoricalVersion ? (
+                  <StatusBadge status="queued" label="unsaved" />
+                ) : null}
               </div>
               <div className="w-full min-w-0 flex items-center gap-4">
                 <div className="min-w-0 flex-1 overflow-hidden">
@@ -1046,17 +1602,19 @@ export function Workspace({
                     className="studio-title-field text-white"
                   />
                 </div>
-                {title !== document.title && !isViewingHistoricalVersion && (
+                {title !== serverTitle && !isViewingHistoricalVersion && (
                   <AppButton
                     type="button"
                     onClick={() => {
                       void handleSaveTitle();
                     }}
+                    disabled={savingTitle}
+                    aria-busy={savingTitle}
                     tone="secondary"
                     size="1"
                     className="shrink-0 text-[10px] uppercase tracking-wider h-7 px-3 bg-[var(--surface-2)]/50 hover:bg-[var(--accent-strong)]/20 hover:text-[var(--accent-strong)] hover:border-[var(--accent-strong)]/50 transition-colors"
                   >
-                    Save Title
+                    {savingTitle ? renderBusyButtonLabel("Saving...") : "Save Title"}
                   </AppButton>
                 )}
               </div>
@@ -1073,11 +1631,14 @@ export function Workspace({
                   isViewingHistoricalVersion ||
                   overallStatus === "generating"
                 }
+                aria-busy={savingVersion}
                 tone="primary"
                 size="3"
                 className="text-xs cursor-pointer"
               >
-                {savingVersion ? "Creating..." : "Create Version"}
+                {savingVersion
+                  ? renderBusyButtonLabel("Creating...")
+                  : "Create Version"}
               </AppButton>
               <AppButton
                 type="button"
@@ -1103,10 +1664,6 @@ export function Workspace({
               >
                 New
               </AppButton>
-              <AccountMenu
-                user={user}
-                disabled={overallStatus === "generating" || savingVersion}
-              />
             </div>
           </div>
 
@@ -1135,20 +1692,26 @@ export function Workspace({
                     Viewing snapshot <span className="text-white">v{activeVersionNumber}</span>.
                     Return to the latest draft to edit or generate.
                   </p>
-                  {document.currentVersionId ? (
+                  {latestVersionId ? (
                     <AppButton
                       type="button"
                       tone="ghost"
                       size="2"
                       className="text-xs"
                       onClick={() => {
-                        const currentVersion = document.versions.find(
-                          (version) => version.id === document.currentVersionId,
+                        setActiveVersionId(latestVersionId);
+                        setActiveVersionNumber(latestVersionNumber);
+                        setTitle(document.title);
+                        setVersionLoadError("");
+                        setSaveVersionError("");
+                        setBlockStatus({});
+                        applyCanvasContent(
+                          document.currentContentJson,
+                          "the latest version",
                         );
-
-                        if (currentVersion) {
-                          requestLoadVersion(currentVersion);
-                        }
+                        setTimeout(() => {
+                          resetDirtyStateToCurrentCanvas();
+                        }, 0);
                       }}
                     >
                       Return to Latest
@@ -1187,13 +1750,17 @@ export function Workspace({
                   !prompt.trim() ||
                   overallStatus === "generating" ||
                   isViewingHistoricalVersion ||
-                  savingVersion
+                  savingVersion ||
+                  startingGeneration
                 }
+                aria-busy={startingGeneration}
                 tone="primary"
                 size="3"
                 className="w-full text-xs shadow-[0_0_15px_rgba(47,223,160,0.15)]"
               >
-                Synthesize Draft
+                {startingGeneration
+                  ? renderBusyButtonLabel("Starting...")
+                  : "Synthesize Draft"}
               </AppButton>
               <div className="grid grid-cols-2 gap-3">
                 <AppButton
@@ -1203,30 +1770,40 @@ export function Workspace({
                     !jobId ||
                     overallStatus !== "generating" ||
                     isViewingHistoricalVersion ||
-                    savingVersion
+                    savingVersion ||
+                    cancellingGeneration
                   }
+                  aria-busy={cancellingGeneration}
                   tone="secondary"
                   size="3"
                   className="text-xs cursor-pointer"
                 >
-                  Halt
+                  {cancellingGeneration
+                    ? renderBusyButtonLabel("Halting...")
+                    : "Halt"}
                 </AppButton>
                 <AppButton
-                  asChild
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={
+                    busyUpload || isViewingHistoricalVersion || savingVersion
+                  }
+                  aria-busy={busyUpload}
                   tone="secondary"
                   size="3"
                   className="text-xs cursor-pointer"
                 >
-                  <label>
-                    {busyUpload ? "..." : "Grounding File"}
-                    <input
-                      type="file"
-                      className="hidden"
-                      disabled={isViewingHistoricalVersion || savingVersion}
-                      onChange={handleUpload}
-                    />
-                  </label>
+                  {busyUpload
+                    ? renderBusyButtonLabel("Grounding...")
+                    : "Grounding File"}
                 </AppButton>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  disabled={busyUpload || isViewingHistoricalVersion || savingVersion}
+                  onChange={handleUpload}
+                />
               </div>
             </div>
           </div>
@@ -1261,13 +1838,17 @@ export function Workspace({
                 !selectionText ||
                 !rewritePrompt.trim() ||
                 isViewingHistoricalVersion ||
-                savingVersion
+                savingVersion ||
+                rewritingSelection
               }
+              aria-busy={rewritingSelection}
               tone="secondary"
               size="3"
               className="w-full text-xs border-[var(--accent)]/30 hover:border-[var(--accent-strong)]/50"
             >
-              Apply Mutation
+              {rewritingSelection
+                ? renderBusyButtonLabel("Applying...")
+                : "Apply Mutation"}
             </AppButton>
           </div>
 

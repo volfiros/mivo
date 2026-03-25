@@ -10,7 +10,7 @@ import {
 } from "@/lib/records";
 
 const patchSchema = z.object({
-  title: z.string().min(1),
+  title: z.string().min(1).optional(),
   content: z.any()
 });
 

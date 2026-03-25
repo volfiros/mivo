@@ -89,7 +89,114 @@ export async function streamBlock(params: {
   }
 
   const finalResponse = await stream.finalResponse();
-  return finalResponse.output_parsed;
+  const rawOutput = finalResponse.output_text ?? "";
+  const parsed =
+    finalResponse.output_parsed ??
+    buildGeneratedBlockFromRawOutput(params.blockType, rawOutput);
+
+  if (!parsed) {
+    throw new Error(`Unable to parse ${params.blockType} block output`);
+  }
+
+  return normalizeGeneratedBlock(
+    params.blockType,
+    parsed,
+    rawOutput
+  );
+}
+
+export type StreamingPreview = {
+  kind: "plain" | "rich_text";
+  text: string;
+};
+
+export function buildStreamingPreview(blockType: keyof typeof blockSchemaMap, source: string): StreamingPreview {
+  switch (blockType) {
+    case "rich_text": {
+      const heading = extractStringValue(source, "heading")?.value ?? "";
+      const body = extractStringArray(source, "body");
+
+      return {
+        kind: "rich_text",
+        text: [heading, ...body].filter(Boolean).join("\n\n")
+      };
+    }
+    case "hero_section":
+      return {
+        kind: "plain",
+        text: [
+          extractStringValue(source, "title")?.value ?? "",
+          extractStringValue(source, "subtitle")?.value ?? "",
+          extractStringValue(source, "actionLabel")?.value ?? ""
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      };
+    case "two_column":
+      return {
+        kind: "plain",
+        text: [
+          extractStringValue(source, "leftTitle")?.value ?? "",
+          extractStringValue(source, "leftBody")?.value ?? "",
+          extractStringValue(source, "rightTitle")?.value ?? "",
+          extractStringValue(source, "rightBody")?.value ?? ""
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      };
+    case "image_with_copy":
+      return {
+        kind: "plain",
+        text: [
+          extractStringValue(source, "title")?.value ?? "",
+          extractStringValue(source, "body")?.value ?? ""
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      };
+    case "callout":
+      return {
+        kind: "plain",
+        text: [
+          extractStringValue(source, "label")?.value ?? "",
+          extractStringValue(source, "body")?.value ?? ""
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      };
+    case "quote":
+      return {
+        kind: "plain",
+        text: [
+          extractStringValue(source, "quote")?.value ?? "",
+          extractStringValue(source, "attribution")?.value ?? ""
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      };
+    case "cta_banner":
+      return {
+        kind: "plain",
+        text: [
+          extractStringValue(source, "title")?.value ?? "",
+          extractStringValue(source, "body")?.value ?? "",
+          extractStringValue(source, "actionLabel")?.value ?? ""
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      };
+    case "feature_grid": {
+      const items = extractFeatureGridItems(source);
+
+      return {
+        kind: "plain",
+        text: items
+          .flatMap((item) => [item.title, item.body])
+          .filter(Boolean)
+          .join("\n\n")
+      };
+    }
+  }
 }
 
 export async function rewriteSelection(params: {
@@ -119,8 +226,12 @@ export async function rewriteSelection(params: {
   return response.output_parsed?.replacement ?? params.selectionText;
 }
 
-export function blockDataToNodes(blockId: string, block: z.infer<(typeof blockSchemaMap)[keyof typeof blockSchemaMap]>) {
-  return blockToNodes(block, blockId);
+export function blockDataToNodes(
+  blockId: string,
+  block: z.infer<(typeof blockSchemaMap)[keyof typeof blockSchemaMap]>,
+  sectionLabel?: string,
+) {
+  return blockToNodes(block, blockId, sectionLabel);
 }
 
 export function serializePreviewBlocks(blocks: Array<{ label: string; type: string }>) {
@@ -141,10 +252,359 @@ export function createInitialDocumentTitle(prompt: string, contentType: ContentT
   return compact;
 }
 
+function normalizeGeneratedBlock(
+  _blockType: keyof typeof blockSchemaMap,
+  parsed: z.infer<(typeof blockSchemaMap)[keyof typeof blockSchemaMap]>,
+  rawOutput: string
+) {
+  switch (parsed.type) {
+    case "rich_text":
+      return richTextBlockSchema.parse({
+        ...parsed,
+        heading: normalizeText(parsed.heading, extractStringValue(rawOutput, "heading")?.value),
+        body: normalizeTextArray(
+          parsed.body,
+          extractStringArray(rawOutput, "body")
+        )
+      });
+    case "hero_section":
+      return heroSectionBlockSchema.parse({
+        ...parsed,
+        eyebrow: normalizeText(parsed.eyebrow, extractStringValue(rawOutput, "eyebrow")?.value),
+        title: normalizeText(parsed.title, extractStringValue(rawOutput, "title")?.value),
+        subtitle: normalizeText(parsed.subtitle, extractStringValue(rawOutput, "subtitle")?.value),
+        actionLabel: normalizeText(
+          parsed.actionLabel,
+          extractStringValue(rawOutput, "actionLabel")?.value
+        )
+      });
+    case "two_column":
+      return blockSchemaMap.two_column.parse({
+        ...parsed,
+        leftTitle: normalizeText(parsed.leftTitle, extractStringValue(rawOutput, "leftTitle")?.value),
+        leftBody: normalizeText(parsed.leftBody, extractStringValue(rawOutput, "leftBody")?.value),
+        rightTitle: normalizeText(parsed.rightTitle, extractStringValue(rawOutput, "rightTitle")?.value),
+        rightBody: normalizeText(parsed.rightBody, extractStringValue(rawOutput, "rightBody")?.value)
+      });
+    case "image_with_copy":
+      return imageWithCopyBlockSchema.parse({
+        ...parsed,
+        title: normalizeText(parsed.title, extractStringValue(rawOutput, "title")?.value),
+        body: normalizeText(parsed.body, extractStringValue(rawOutput, "body")?.value)
+      });
+    case "callout":
+      return calloutBlockSchema.parse({
+        ...parsed,
+        label: normalizeText(parsed.label, extractStringValue(rawOutput, "label")?.value),
+        body: normalizeText(parsed.body, extractStringValue(rawOutput, "body")?.value)
+      });
+    case "quote":
+      return quoteBlockSchema.parse({
+        ...parsed,
+        quote: normalizeText(parsed.quote, extractStringValue(rawOutput, "quote")?.value),
+        attribution: normalizeText(
+          parsed.attribution,
+          extractStringValue(rawOutput, "attribution")?.value
+        )
+      });
+    case "cta_banner":
+      return ctaBannerBlockSchema.parse({
+        ...parsed,
+        title: normalizeText(parsed.title, extractStringValue(rawOutput, "title")?.value),
+        body: normalizeText(parsed.body, extractStringValue(rawOutput, "body")?.value),
+        actionLabel: normalizeText(
+          parsed.actionLabel,
+          extractStringValue(rawOutput, "actionLabel")?.value
+        )
+      });
+    case "feature_grid": {
+      const rawItems = extractFeatureGridItems(rawOutput);
+
+      return featureGridBlockSchema.parse({
+        ...parsed,
+        items: parsed.items.map((item, index) => ({
+          title: normalizeText(item.title, rawItems[index]?.title),
+          body: normalizeText(item.body, rawItems[index]?.body)
+        }))
+      });
+    }
+  }
+}
+
+function buildGeneratedBlockFromRawOutput(
+  blockType: keyof typeof blockSchemaMap,
+  rawOutput: string
+) {
+  switch (blockType) {
+    case "rich_text":
+      return {
+        type: "rich_text" as const,
+        heading: extractStringValue(rawOutput, "heading")?.value ?? "",
+        body: extractStringArray(rawOutput, "body")
+      };
+    case "hero_section":
+      return {
+        type: "hero_section" as const,
+        eyebrow: extractStringValue(rawOutput, "eyebrow")?.value ?? "",
+        title: extractStringValue(rawOutput, "title")?.value ?? "",
+        subtitle: extractStringValue(rawOutput, "subtitle")?.value ?? "",
+        actionLabel: extractStringValue(rawOutput, "actionLabel")?.value ?? ""
+      };
+    case "two_column":
+      return {
+        type: "two_column" as const,
+        leftTitle: extractStringValue(rawOutput, "leftTitle")?.value ?? "",
+        leftBody: extractStringValue(rawOutput, "leftBody")?.value ?? "",
+        rightTitle: extractStringValue(rawOutput, "rightTitle")?.value ?? "",
+        rightBody: extractStringValue(rawOutput, "rightBody")?.value ?? ""
+      };
+    case "image_with_copy":
+      return {
+        type: "image_with_copy" as const,
+        imageUrl: extractStringValue(rawOutput, "imageUrl")?.value ?? "",
+        title: extractStringValue(rawOutput, "title")?.value ?? "",
+        body: extractStringValue(rawOutput, "body")?.value ?? ""
+      };
+    case "callout":
+      return {
+        type: "callout" as const,
+        label: extractStringValue(rawOutput, "label")?.value ?? "",
+        body: extractStringValue(rawOutput, "body")?.value ?? ""
+      };
+    case "quote":
+      return {
+        type: "quote" as const,
+        quote: extractStringValue(rawOutput, "quote")?.value ?? "",
+        attribution: extractStringValue(rawOutput, "attribution")?.value ?? ""
+      };
+    case "cta_banner":
+      return {
+        type: "cta_banner" as const,
+        title: extractStringValue(rawOutput, "title")?.value ?? "",
+        body: extractStringValue(rawOutput, "body")?.value ?? "",
+        actionLabel: extractStringValue(rawOutput, "actionLabel")?.value ?? ""
+      };
+    case "feature_grid":
+      return {
+        type: "feature_grid" as const,
+        items: extractFeatureGridItems(rawOutput)
+      };
+  }
+}
+
+function normalizeText(primary: string | undefined, fallback?: string) {
+  const nextPrimary = primary?.trim();
+
+  if (nextPrimary) {
+    return nextPrimary;
+  }
+
+  const nextFallback = fallback?.trim();
+
+  return nextFallback ?? "";
+}
+
+function normalizeTextArray(primary: string[] | undefined, fallback: string[]) {
+  const normalizedPrimary = (primary ?? [])
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (normalizedPrimary.length) {
+    return normalizedPrimary;
+  }
+
+  return fallback.map((item) => item.trim()).filter(Boolean);
+}
+
 function shouldUseComplexModel(contentType: ContentType, blockType: string) {
   return contentType === "landing_page" && ["hero_section", "feature_grid", "two_column"].includes(blockType);
 }
 
 export function fallbackDocument() {
   return createEmptyDocument();
+}
+
+function extractFeatureGridItems(source: string) {
+  const itemsIndex = source.indexOf('"items"');
+
+  if (itemsIndex === -1) {
+    return [];
+  }
+
+  const scopedSource = source.slice(itemsIndex);
+  const items: Array<{ title: string; body: string }> = [];
+  let cursor = 0;
+
+  while (cursor < scopedSource.length) {
+    const title = extractStringValue(scopedSource, "title", cursor);
+
+    if (!title) {
+      break;
+    }
+
+    const body = extractStringValue(scopedSource, "body", title.nextIndex);
+
+    items.push({
+      title: title.value,
+      body: body?.value ?? ""
+    });
+
+    cursor = body?.nextIndex ?? title.nextIndex;
+  }
+
+  return items;
+}
+
+function extractStringArray(source: string, key: string) {
+  const keyIndex = source.indexOf(`"${key}"`);
+
+  if (keyIndex === -1) {
+    return [];
+  }
+
+  const colonIndex = source.indexOf(":", keyIndex + key.length + 2);
+
+  if (colonIndex === -1) {
+    return [];
+  }
+
+  const openBracketIndex = source.indexOf("[", colonIndex + 1);
+
+  if (openBracketIndex === -1) {
+    return [];
+  }
+
+  const values: string[] = [];
+  let cursor = openBracketIndex + 1;
+
+  while (cursor < source.length) {
+    const closingBracketIndex = source.indexOf("]", cursor);
+    const quoteIndex = source.indexOf('"', cursor);
+
+    if (quoteIndex === -1 || (closingBracketIndex !== -1 && closingBracketIndex < quoteIndex)) {
+      break;
+    }
+
+    const token = readJsonStringToken(source, quoteIndex + 1);
+
+    if (token.value) {
+      values.push(token.value);
+    }
+
+    cursor = token.nextIndex;
+
+    if (!token.complete) {
+      break;
+    }
+  }
+
+  return values;
+}
+
+function extractStringValue(source: string, key: string, fromIndex = 0) {
+  const keyIndex = source.indexOf(`"${key}"`, fromIndex);
+
+  if (keyIndex === -1) {
+    return null;
+  }
+
+  const colonIndex = source.indexOf(":", keyIndex + key.length + 2);
+
+  if (colonIndex === -1) {
+    return null;
+  }
+
+  const quoteIndex = source.indexOf('"', colonIndex + 1);
+
+  if (quoteIndex === -1) {
+    return null;
+  }
+
+  const token = readJsonStringToken(source, quoteIndex + 1);
+
+  return {
+    value: token.value,
+    nextIndex: token.nextIndex
+  };
+}
+
+function readJsonStringToken(source: string, startIndex: number) {
+  let cursor = startIndex;
+  let value = "";
+
+  while (cursor < source.length) {
+    const char = source[cursor];
+
+    if (char === '"') {
+      return {
+        complete: true,
+        nextIndex: cursor + 1,
+        value
+      };
+    }
+
+    if (char === "\\") {
+      const escaped = source[cursor + 1];
+
+      if (!escaped) {
+        return {
+          complete: false,
+          nextIndex: source.length,
+          value
+        };
+      }
+
+      if (escaped === "u") {
+        const unicodeValue = source.slice(cursor + 2, cursor + 6);
+
+        if (unicodeValue.length < 4 || /[^0-9a-f]/i.test(unicodeValue)) {
+          return {
+            complete: false,
+            nextIndex: source.length,
+            value
+          };
+        }
+
+        value += String.fromCharCode(parseInt(unicodeValue, 16));
+        cursor += 6;
+        continue;
+      }
+
+      value += decodeEscapedCharacter(escaped);
+      cursor += 2;
+      continue;
+    }
+
+    value += char;
+    cursor += 1;
+  }
+
+  return {
+    complete: false,
+    nextIndex: source.length,
+    value
+  };
+}
+
+function decodeEscapedCharacter(value: string) {
+  switch (value) {
+    case '"':
+      return '"';
+    case "\\":
+      return "\\";
+    case "/":
+      return "/";
+    case "b":
+      return "\b";
+    case "f":
+      return "\f";
+    case "n":
+      return "\n";
+    case "r":
+      return "\r";
+    case "t":
+      return "\t";
+    default:
+      return value;
+  }
 }

@@ -300,6 +300,47 @@ export async function saveDocumentContent(params: {
   return versionId;
 }
 
+export async function saveDocumentDraft(params: {
+  userId: string;
+  documentId: string;
+  content: JSONContent;
+  title?: string;
+}) {
+  await ensureDatabase();
+  const db = getDb();
+  const current = await getOwnedDocument(params.userId, params.documentId);
+
+  if (!current) {
+    throw new Error("Document not found");
+  }
+
+  const nextTitle = params.title ?? current.title;
+  const currentContent = sanitizeDocumentContent(current.currentContentJson);
+  const nextContent = sanitizeDocumentContent(params.content);
+
+  if (
+    isSameDocumentState(
+      current.title,
+      currentContent,
+      nextTitle,
+      nextContent
+    )
+  ) {
+    return current.currentVersionId;
+  }
+
+  await db
+    .update(documents)
+    .set({
+      title: nextTitle,
+      currentContentJson: nextContent,
+      updatedAt: new Date()
+    })
+    .where(and(eq(documents.id, params.documentId), eq(documents.ownerUserId, params.userId)));
+
+  return current.currentVersionId;
+}
+
 async function findCheckpointBase(documentId: string, currentVersionNumber: number): Promise<StoredVersion | null> {
   await ensureDatabase();
   const db = getDb();

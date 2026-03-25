@@ -30,12 +30,19 @@ export function buildOutlineInput(params: {
 }
 
 export function buildBlockInstructions(contentType: ContentType, blockType: string) {
+  const blockSpecificGuidance =
+    blockType === "cta_banner"
+      ? "For cta_banner, always provide a concrete title, a complete body, and a clear actionLabel. Never leave title or body empty, whitespace-only, or placeholder-like."
+      : "";
+
   return [
     "You are generating one block for a structured content editor.",
     "Return valid structured data only.",
     "Stay consistent with the tone and structure of the requested document.",
+    "Every required field must contain publication-ready content. Do not leave required fields empty or whitespace-only.",
     `Document type: ${contentType}.`,
-    `Block type: ${blockType}.`
+    `Block type: ${blockType}.`,
+    blockSpecificGuidance
   ].join(" ");
 }
 

@@ -1,11 +1,12 @@
 "use client";
 
-import { Node, mergeAttributes, type JSONContent } from "@tiptap/core";
+import type { ReactNode } from "react";
+import { Node, mergeAttributes } from "@tiptap/core";
 import Placeholder from "@tiptap/extension-placeholder";
 import StarterKit from "@tiptap/starter-kit";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import { clsx } from "clsx";
-import { AppInput, AppPanel, AppTextArea, FieldLabel } from "@/components/ui/primitives";
+import { AppPanel } from "@/components/ui/primitives";
 
 type BlockProps = {
   node: { attrs: Record<string, string> };
@@ -13,13 +14,47 @@ type BlockProps = {
   selected: boolean;
 };
 
-function BlockShell({ selected, children }: { selected: boolean; children: React.ReactNode }) {
+function ensureText(value: unknown, fallback = "") {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  return fallback.trim();
+}
+
+function splitSections(preview: string) {
+  return preview
+    .split(/\n{2,}/)
+    .map((section) => section.trim())
+    .filter(Boolean);
+}
+
+const titleClass = "text-[1.15rem] font-semibold leading-7 text-white";
+const bodyClass = "text-[0.98rem] leading-7 text-[var(--text-soft)]";
+
+function SectionBanner({ children }: { children: ReactNode }) {
+  return (
+    <div className="mb-5 border-b border-[var(--border)] pb-2 text-[0.78rem] font-medium text-[var(--text-soft)]">
+      {children}
+    </div>
+  );
+}
+
+function BlockShell({
+  selected,
+  children,
+}: {
+  selected: boolean;
+  children: ReactNode;
+}) {
   return (
     <NodeViewWrapper className="my-5">
       <AppPanel
         className={clsx(
-          "p-6 transition",
-          selected ? "!border-[rgba(66,230,164,0.55)] shadow-[0_0_0_1px_rgba(66,230,164,0.15)]" : ""
+          "rounded-[10px] p-5 transition",
+          selected
+            ? "!border-[rgba(66,230,164,0.45)]"
+            : "",
         )}
       >
         {children}
@@ -28,178 +63,159 @@ function BlockShell({ selected, children }: { selected: boolean; children: React
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <FieldLabel className="mb-3">{children}</FieldLabel>;
+function SectionHeaderView({
+  node,
+  selected,
+}: Pick<BlockProps, "node" | "selected">) {
+  const label = ensureText(node.attrs.label, "Section");
+
+  return (
+    <NodeViewWrapper className="mb-4 mt-6">
+      <div
+        className={clsx(
+          "border-b border-[var(--border)] pb-2 text-[0.78rem] font-medium text-[var(--text-soft)] transition",
+          selected
+            ? "border-[rgba(66,230,164,0.45)]"
+            : "",
+        )}
+      >
+        {label}
+      </div>
+    </NodeViewWrapper>
+  );
 }
 
-function TextInput({
-  value,
-  onChange,
-  className
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  className?: string;
-}) {
-  return <AppInput value={value} onChange={(event) => onChange(event.target.value)} className={className} />;
-}
+function HeroSectionView({ node, selected }: BlockProps) {
+  const title = ensureText(node.attrs.title, node.attrs.sectionLabel || "Hero");
+  const subtitle = ensureText(node.attrs.subtitle, "Supporting copy unavailable.");
+  const actionLabel = ensureText(node.attrs.actionLabel, "Learn more");
 
-function TextArea({
-  value,
-  onChange,
-  className
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  className?: string;
-}) {
-  return <AppTextArea value={value} rows={4} onChange={(event) => onChange(event.target.value)} className={className} />;
-}
-
-function HeroSectionView({ node, updateAttributes, selected }: BlockProps) {
   return (
     <BlockShell selected={selected}>
-      <Label>Hero Section</Label>
-      <TextInput
-        value={node.attrs.eyebrow}
-        onChange={(eyebrow) => updateAttributes({ eyebrow })}
-        className="mb-4 h-11 text-xs uppercase tracking-[0.3em] text-[var(--text-soft)]"
-      />
-      <TextArea
-        value={node.attrs.title}
-        onChange={(title) => updateAttributes({ title })}
-        className="font-ui font-semibold mb-4 text-4xl leading-[0.92]"
-      />
-      <TextArea
-        value={node.attrs.subtitle}
-        onChange={(subtitle) => updateAttributes({ subtitle })}
-        className="mb-6 text-sm text-[var(--text-muted)]"
-      />
-      <TextInput
-        value={node.attrs.actionLabel}
-        onChange={(actionLabel) => updateAttributes({ actionLabel })}
-        className="h-12 max-w-[220px] text-sm text-white"
-      />
+      <h2 className={titleClass}>{title}</h2>
+      <p className={`mt-3 ${bodyClass}`}>{subtitle}</p>
+      <p className="mt-4 text-[0.98rem] font-medium leading-7 text-white">{actionLabel}</p>
     </BlockShell>
   );
 }
 
-function TwoColumnView({ node, updateAttributes, selected }: BlockProps) {
+function TwoColumnView({ node, selected }: BlockProps) {
+  const leftTitle = ensureText(node.attrs.leftTitle, `${node.attrs.sectionLabel || "Positioning"} left`);
+  const leftBody = ensureText(node.attrs.leftBody, "Supporting copy unavailable.");
+  const rightTitle = ensureText(node.attrs.rightTitle, `${node.attrs.sectionLabel || "Positioning"} right`);
+  const rightBody = ensureText(node.attrs.rightBody, "Supporting copy unavailable.");
+
   return (
     <BlockShell selected={selected}>
-      <Label>Two Column</Label>
       <div className="grid gap-6 md:grid-cols-2">
         <div>
-          <TextInput
-            value={node.attrs.leftTitle}
-            onChange={(leftTitle) => updateAttributes({ leftTitle })}
-            className="font-ui font-semibold mb-3 text-2xl"
-          />
-          <TextArea value={node.attrs.leftBody} onChange={(leftBody) => updateAttributes({ leftBody })} className="text-sm text-[var(--text-muted)]" />
+          <h3 className={titleClass}>{leftTitle}</h3>
+          <p className={`mt-3 ${bodyClass}`}>{leftBody}</p>
         </div>
         <div>
-          <TextInput
-            value={node.attrs.rightTitle}
-            onChange={(rightTitle) => updateAttributes({ rightTitle })}
-            className="font-ui font-semibold mb-3 text-2xl"
-          />
-          <TextArea
-            value={node.attrs.rightBody}
-            onChange={(rightBody) => updateAttributes({ rightBody })}
-            className="text-sm text-[var(--text-muted)]"
-          />
+          <h3 className={titleClass}>{rightTitle}</h3>
+          <p className={`mt-3 ${bodyClass}`}>{rightBody}</p>
         </div>
       </div>
     </BlockShell>
   );
 }
 
-function ImageWithCopyView({ node, updateAttributes, selected }: BlockProps) {
+function ImageWithCopyView({ node, selected }: BlockProps) {
+  const imageUrl = ensureText(node.attrs.imageUrl);
+  const title = ensureText(node.attrs.title, node.attrs.sectionLabel || "Visual");
+  const body = ensureText(node.attrs.body, "Supporting copy unavailable.");
+
   return (
     <BlockShell selected={selected}>
-      <Label>Image With Copy</Label>
       <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
         <div className="flex min-h-[180px] items-center justify-center rounded-[20px] border border-[var(--border)] bg-[var(--surface-2)] px-4 text-center text-sm text-[var(--text-soft)]">
-          {node.attrs.imageUrl || "Image URL"}
+          {imageUrl || "Image placeholder"}
         </div>
         <div>
-          <TextInput value={node.attrs.imageUrl} onChange={(imageUrl) => updateAttributes({ imageUrl })} className="mb-4 h-11 text-xs text-[var(--text-soft)]" />
-          <TextInput
-            value={node.attrs.title}
-            onChange={(title) => updateAttributes({ title })}
-            className="font-ui font-semibold mb-3 text-3xl"
-          />
-          <TextArea value={node.attrs.body} onChange={(body) => updateAttributes({ body })} className="text-sm text-[var(--text-muted)]" />
+          <h3 className={titleClass}>{title}</h3>
+          <p className={`mt-3 ${bodyClass}`}>{body}</p>
         </div>
       </div>
     </BlockShell>
   );
 }
 
-function CalloutView({ node, updateAttributes, selected }: BlockProps) {
+function CalloutView({ node, selected }: BlockProps) {
+  const label = ensureText(node.attrs.label, node.attrs.sectionLabel || "Callout");
+  const body = ensureText(node.attrs.body, "Supporting copy unavailable.");
+
   return (
     <BlockShell selected={selected}>
-      <Label>Callout</Label>
-      <TextInput value={node.attrs.label} onChange={(label) => updateAttributes({ label })} className="mb-3 h-11 text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]" />
-      <TextArea value={node.attrs.body} onChange={(body) => updateAttributes({ body })} className="font-ui font-semibold text-3xl leading-tight" />
+      <h3 className={titleClass}>{label}</h3>
+      <p className={`mt-3 ${bodyClass}`}>{body}</p>
     </BlockShell>
   );
 }
 
-function QuoteView({ node, updateAttributes, selected }: BlockProps) {
+function QuoteView({ node, selected }: BlockProps) {
+  const quote = ensureText(node.attrs.quote, "Quote unavailable.");
+  const attribution = ensureText(node.attrs.attribution, node.attrs.sectionLabel || "Quote");
+
   return (
     <BlockShell selected={selected}>
-      <Label>Quote</Label>
-      <TextArea value={node.attrs.quote} onChange={(quote) => updateAttributes({ quote })} className="font-ui font-semibold text-4xl leading-tight" />
-      <TextInput value={node.attrs.attribution} onChange={(attribution) => updateAttributes({ attribution })} className="mt-4 h-11 text-sm text-[var(--text-soft)]" />
+      <blockquote className="border-l border-[var(--border)] pl-4">
+        <p className={bodyClass}>&quot;{quote}&quot;</p>
+        <p className={`mt-3 ${titleClass}`}>{attribution}</p>
+      </blockquote>
     </BlockShell>
   );
 }
 
-function CtaBannerView({ node, updateAttributes, selected }: BlockProps) {
+function CtaBannerView({ node, selected }: BlockProps) {
+  const title = ensureText(node.attrs.title, node.attrs.sectionLabel || "CTA");
+  const body = ensureText(node.attrs.body, "Take the next step.");
+  const actionLabel = ensureText(node.attrs.actionLabel, "Learn more");
+
   return (
     <BlockShell selected={selected}>
-      <Label>CTA Banner</Label>
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="flex-1">
-          <TextInput
-            value={node.attrs.title}
-            onChange={(title) => updateAttributes({ title })}
-            className="font-ui font-semibold mb-3 text-3xl"
-          />
-          <TextArea value={node.attrs.body} onChange={(body) => updateAttributes({ body })} className="text-sm text-[var(--text-muted)]" />
-        </div>
-        <TextInput
-          value={node.attrs.actionLabel}
-          onChange={(actionLabel) => updateAttributes({ actionLabel })}
-          className="h-12 min-w-[180px] text-sm text-white"
-        />
-      </div>
+      <h3 className={titleClass}>{title}</h3>
+      <p className={`mt-3 ${bodyClass}`}>{body}</p>
+      <p className="mt-4 text-[0.98rem] font-medium leading-7 text-white">{actionLabel}</p>
     </BlockShell>
   );
 }
 
-function FeatureGridView({ node, updateAttributes, selected }: BlockProps) {
+function FeatureGridView({ node, selected }: BlockProps) {
+  const sectionLabel = ensureText(node.attrs.sectionLabel, "Features");
   const items = [
-    ["item1Title", "item1Body"],
-    ["item2Title", "item2Body"],
-    ["item3Title", "item3Body"],
-    ["item4Title", "item4Body"]
-  ] as const;
+    [
+      ensureText(node.attrs.item1Title),
+      ensureText(node.attrs.item1Body),
+    ],
+    [
+      ensureText(node.attrs.item2Title),
+      ensureText(node.attrs.item2Body),
+    ],
+    [
+      ensureText(node.attrs.item3Title),
+      ensureText(node.attrs.item3Body),
+    ],
+    [
+      ensureText(node.attrs.item4Title),
+      ensureText(node.attrs.item4Body),
+    ],
+  ].filter(([title, body]) => title || body);
+
+  const displayItems = items.length
+    ? items
+    : [
+        [`${sectionLabel} 1`, "Supporting copy unavailable."],
+        [`${sectionLabel} 2`, "Supporting copy unavailable."],
+      ];
 
   return (
     <BlockShell selected={selected}>
-      <Label>Feature Grid</Label>
       <div className="grid gap-4 md:grid-cols-2">
-        {items.map(([titleKey, bodyKey], index) => (
-          <AppPanel key={titleKey} className="p-5">
-            <p className="mb-2 text-[11px] uppercase tracking-[0.22em] text-[var(--text-soft)]">Card {index + 1}</p>
-            <TextInput
-              value={node.attrs[titleKey]}
-              onChange={(value) => updateAttributes({ [titleKey]: value })}
-              className="font-ui font-semibold mb-3 text-2xl"
-            />
-            <TextArea value={node.attrs[bodyKey]} onChange={(value) => updateAttributes({ [bodyKey]: value })} className="text-sm text-[var(--text-muted)]" />
+        {displayItems.map(([title, body], index) => (
+          <AppPanel key={`${title}-${index}`} className="rounded-[10px] p-5">
+            <h3 className={titleClass}>{title}</h3>
+            <p className={`mt-3 ${bodyClass}`}>{body}</p>
           </AppPanel>
         ))}
       </div>
@@ -208,11 +224,46 @@ function FeatureGridView({ node, updateAttributes, selected }: BlockProps) {
 }
 
 function PlaceholderView({ node, selected }: Pick<BlockProps, "node" | "selected">) {
+  const preview =
+    typeof node.attrs.preview === "string" ? node.attrs.preview : "";
+  const previewKind =
+    node.attrs.previewKind === "rich_text" ? "rich_text" : "plain";
+  const previewSections = splitSections(preview);
+
   return (
     <NodeViewWrapper className="my-5">
-      <AppPanel className={clsx("placeholder-block pulse-line p-6", selected ? "!border-[rgba(66,230,164,0.7)]" : "")}>
-        <p className="mb-2 text-[11px] uppercase tracking-[0.24em] text-[var(--accent-strong)]">{node.attrs.label}</p>
-        <p className="text-sm text-[var(--text-soft)]">{node.attrs.preview || "Generating structured block..."}</p>
+      <AppPanel
+        className={clsx(
+          "placeholder-block pulse-line p-6",
+          selected ? "!border-[rgba(66,230,164,0.7)]" : "",
+        )}
+      >
+        <SectionBanner>{ensureText(node.attrs.label, "Generating")}</SectionBanner>
+        {preview ? (
+          previewKind === "rich_text" && previewSections.length ? (
+            <div className="space-y-3">
+              <p className={`${titleClass} whitespace-pre-wrap`}>
+                {previewSections[0]}
+              </p>
+              {previewSections.slice(1).map((section, index) => (
+                <p
+                  key={`${node.attrs.blockId}-preview-${index}`}
+                  className={`${bodyClass} whitespace-pre-wrap`}
+                >
+                  {section}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className={`${bodyClass} whitespace-pre-wrap`}>
+              {preview}
+            </p>
+          )
+        ) : (
+          <p className="text-sm text-[var(--text-soft)]">
+            Generating structured block...
+          </p>
+        )}
       </AppPanel>
     </NodeViewWrapper>
   );
@@ -230,7 +281,12 @@ function createBlockNode(config: {
     atom: true,
     draggable: true,
     addAttributes() {
-      return Object.fromEntries(Object.entries(config.attrs).map(([key, value]) => [key, { default: value }]));
+      return Object.fromEntries(
+        Object.entries(config.attrs).map(([key, value]) => [
+          key,
+          { default: value },
+        ]),
+      );
     },
     parseHTML() {
       return [{ tag: config.tag }];
@@ -240,9 +296,31 @@ function createBlockNode(config: {
     },
     addNodeView() {
       return ReactNodeViewRenderer(config.component);
-    }
+    },
   });
 }
+
+export const SectionHeader = Node.create({
+  name: "sectionHeader",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: false,
+  addAttributes() {
+    return {
+      label: { default: "" },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "mivo-section-header" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["mivo-section-header", mergeAttributes(HTMLAttributes)];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(SectionHeaderView);
+  },
+});
 
 export const HeroSection = createBlockNode({
   name: "heroSection",
@@ -250,11 +328,12 @@ export const HeroSection = createBlockNode({
   component: HeroSectionView,
   attrs: {
     blockId: "",
+    sectionLabel: "",
     eyebrow: "",
     title: "",
     subtitle: "",
-    actionLabel: ""
-  }
+    actionLabel: "",
+  },
 });
 
 export const TwoColumn = createBlockNode({
@@ -263,11 +342,12 @@ export const TwoColumn = createBlockNode({
   component: TwoColumnView,
   attrs: {
     blockId: "",
+    sectionLabel: "",
     leftTitle: "",
     leftBody: "",
     rightTitle: "",
-    rightBody: ""
-  }
+    rightBody: "",
+  },
 });
 
 export const ImageWithCopy = createBlockNode({
@@ -276,10 +356,11 @@ export const ImageWithCopy = createBlockNode({
   component: ImageWithCopyView,
   attrs: {
     blockId: "",
+    sectionLabel: "",
     imageUrl: "",
     title: "",
-    body: ""
-  }
+    body: "",
+  },
 });
 
 export const CalloutBlock = createBlockNode({
@@ -288,9 +369,10 @@ export const CalloutBlock = createBlockNode({
   component: CalloutView,
   attrs: {
     blockId: "",
+    sectionLabel: "",
     label: "",
-    body: ""
-  }
+    body: "",
+  },
 });
 
 export const QuoteBlock = createBlockNode({
@@ -299,9 +381,10 @@ export const QuoteBlock = createBlockNode({
   component: QuoteView,
   attrs: {
     blockId: "",
+    sectionLabel: "",
     quote: "",
-    attribution: ""
-  }
+    attribution: "",
+  },
 });
 
 export const CtaBanner = createBlockNode({
@@ -310,10 +393,11 @@ export const CtaBanner = createBlockNode({
   component: CtaBannerView,
   attrs: {
     blockId: "",
+    sectionLabel: "",
     title: "",
     body: "",
-    actionLabel: ""
-  }
+    actionLabel: "",
+  },
 });
 
 export const FeatureGrid = createBlockNode({
@@ -322,6 +406,7 @@ export const FeatureGrid = createBlockNode({
   component: FeatureGridView,
   attrs: {
     blockId: "",
+    sectionLabel: "",
     item1Title: "",
     item1Body: "",
     item2Title: "",
@@ -329,8 +414,8 @@ export const FeatureGrid = createBlockNode({
     item3Title: "",
     item3Body: "",
     item4Title: "",
-    item4Body: ""
-  }
+    item4Body: "",
+  },
 });
 
 export const AiPlaceholder = Node.create({
@@ -343,7 +428,8 @@ export const AiPlaceholder = Node.create({
       blockId: { default: "" },
       label: { default: "" },
       preview: { default: "" },
-      status: { default: "queued" }
+      previewKind: { default: "plain" },
+      status: { default: "queued" },
     };
   },
   parseHTML() {
@@ -354,18 +440,19 @@ export const AiPlaceholder = Node.create({
   },
   addNodeView() {
     return ReactNodeViewRenderer(PlaceholderView);
-  }
+  },
 });
 
 export const editorExtensions = [
   StarterKit.configure({
     heading: {
-      levels: [1, 2, 3]
-    }
+      levels: [1, 2, 3],
+    },
   }),
   Placeholder.configure({
-    placeholder: "Start editing or generate a structured draft"
+    placeholder: "Start editing or generate a structured draft",
   }),
+  SectionHeader,
   HeroSection,
   TwoColumn,
   ImageWithCopy,
@@ -373,7 +460,5 @@ export const editorExtensions = [
   QuoteBlock,
   CtaBanner,
   FeatureGrid,
-  AiPlaceholder
+  AiPlaceholder,
 ];
-
-export type EditorDoc = JSONContent;

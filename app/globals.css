@@ -143,7 +143,7 @@ label {
     display: grid;
     height: 100vh;
     overflow: hidden;
-    grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(
+    grid-template-columns: minmax(0, 1fr) minmax(
             300px,
             360px
         );
@@ -355,11 +355,11 @@ label {
     border: none !important;
     background: transparent !important;
     padding: 0 !important;
-    font-family: var(--font-ui), sans-serif !important;
-    font-weight: 600 !important;
-    font-size: clamp(1.75rem, 3vw, 2.5rem) !important;
-    line-height: 1.1 !important;
-    letter-spacing: -0.02em !important;
+    font-family: var(--font-display), serif !important;
+    font-weight: 400 !important;
+    font-size: clamp(2rem, 3.5vw, 2.75rem) !important;
+    line-height: 1.05 !important;
+    letter-spacing: -0.04em !important;
     box-shadow: none !important;
 }
 
