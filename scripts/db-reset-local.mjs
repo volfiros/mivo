@@ -65,6 +65,7 @@ try {
   }
 
   await rm(join(cwd(), "uploads"), { recursive: true, force: true });
+  await pool.query("drop schema if exists drizzle cascade");
 } finally {
   await pool.end();
 }

@@ -7,6 +7,7 @@ import { authClient } from "@/lib/auth-client";
 import { getSafeRedirectPath } from "@/lib/redirects";
 import {
   AppButton,
+  AppButtonLink,
   AppInput,
   AppNavLink,
   AppPanel,
@@ -108,12 +109,13 @@ export function AuthForm({
           >
             Mivo
           </AppNavLink>
-          <AppNavLink
+          <AppButtonLink
             href={alternateHref}
-            className="text-sm text-[var(--text-soft)] hover:text-white transition-colors"
+            tone="primary"
+            className="h-9 px-4 text-xs tracking-wide"
           >
-            {mode === "sign-in" ? "Create account" : "Have an account?"}
-          </AppNavLink>
+            {mode === "sign-in" ? "Create Account" : "Sign In"}
+          </AppButtonLink>
         </header>
         <div className="flex flex-1 items-center justify-center py-16 relative z-10">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[var(--accent-strong)]/10 blur-[120px] rounded-full pointer-events-none" />
@@ -126,16 +128,16 @@ export function AuthForm({
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[#141414]/50 backdrop-blur-md mb-6">
                 <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent-strong)] animate-pulse shadow-[0_0_8px_var(--accent-strong)]" />
                 <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-[var(--text-soft)]">
-                  {mode === "sign-in" ? "Authentication" : "Provisioning"}
+                  {mode === "sign-in" ? "Account Access" : "New Account"}
                 </span>
               </div>
               <h1 className="font-display text-4xl text-white tracking-tight leading-tight">
-                {mode === "sign-in" ? "Initialize Session" : "Create Identity"}
+                {mode === "sign-in" ? "Sign In" : "Create Account"}
               </h1>
               <p className="mt-4 text-sm leading-relaxed text-[var(--text-muted)]">
                 {mode === "sign-in"
-                  ? "Authenticate to access your active drafts, version history, and grounded workspaces."
-                  : "Provision your identity to retain persistent drafts and editorial checkpoints."}
+                  ? "Sign in to access your drafts, version history, and workspace."
+                  : "Create an account to save drafts and keep your workspace history."}
               </p>
             </div>
 
@@ -156,7 +158,7 @@ export function AuthForm({
               ) : null}
               <label className="block space-y-2.5">
                 <FieldLabel className="text-[10px] uppercase tracking-wider text-[var(--text-soft)]">
-                  Email Designation
+                  Email
                 </FieldLabel>
                 <AppInput
                   value={email}
@@ -169,7 +171,7 @@ export function AuthForm({
               </label>
               <label className="block space-y-2.5">
                 <FieldLabel className="text-[10px] uppercase tracking-wider text-[var(--text-soft)]">
-                  Security Token
+                  Password
                 </FieldLabel>
                 <AppInput
                   value={password}
@@ -181,7 +183,7 @@ export function AuthForm({
                 />
               </label>
 
-              <div className="pt-6 space-y-4">
+              <div className="pt-6 flex flex-col gap-4">
                 <AppButton
                   type="submit"
                   disabled={submitting}
@@ -190,21 +192,23 @@ export function AuthForm({
                 >
                   {submitting
                     ? mode === "sign-in"
-                      ? "Authenticating..."
-                      : "Provisioning Identity..."
+                      ? "Signing In..."
+                      : "Creating Account..."
                     : mode === "sign-in"
-                      ? "Establish Session"
-                      : "Initialize Account"}
+                      ? "Sign In"
+                      : "Create Account"}
                 </AppButton>
 
-                <AppNavLink
-                  href={alternateHref}
-                  className="block text-center text-xs text-[var(--text-soft)] hover:text-white transition-colors"
-                >
-                  {mode === "sign-in"
-                    ? "Requires clearance? Provision identity"
-                    : "Identity established? Authenticate"}
-                </AppNavLink>
+                <div className="text-center">
+                  <AppNavLink
+                    href={alternateHref}
+                    className="inline-block text-xs text-[var(--text-soft)] hover:text-white transition-colors"
+                  >
+                    {mode === "sign-in"
+                      ? "Need an account? Create one"
+                      : "Already have an account? Sign in"}
+                  </AppNavLink>
+                </div>
               </div>
               {errorMessage ? (
                 <div className="mt-4 p-3 rounded-lg border border-[rgb(255,179,173)]/20 bg-[rgb(255,179,173)]/5 text-center">

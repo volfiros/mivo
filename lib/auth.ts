@@ -4,12 +4,14 @@ import { nextCookies } from "better-auth/next-js";
 import { username } from "better-auth/plugins";
 import { config } from "./config";
 import { getDb } from "./db";
+import * as schema from "./db/schema";
 
 export const auth = betterAuth({
   secret: config.betterAuthSecret,
   baseURL: config.betterAuthUrl,
   database: drizzleAdapter(getDb(), {
-    provider: "pg"
+    provider: "pg",
+    schema
   }),
   emailAndPassword: {
     enabled: true

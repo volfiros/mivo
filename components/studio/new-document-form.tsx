@@ -135,7 +135,7 @@ export function NewDocumentForm({ user }: { user: AuthenticatedUserSummary }) {
               ))}
             </div>
           </div>
-          <AppPanel className="p-8 md:p-10 w-full lg:w-[480px] xl:w-[520px] shrink-0 border border-[var(--border)]/50 bg-[#0A0A0A]/80 backdrop-blur-xl relative overflow-hidden flex flex-col justify-center min-h-[440px]">
+          <AppPanel className="p-6 w-full lg:w-[480px] xl:w-[520px] shrink-0 border border-[var(--border)]/50 bg-[#0A0A0A]/80 backdrop-blur-xl relative overflow-hidden flex flex-col justify-center">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-strong)]/30 to-transparent opacity-50" />
             {submitting ? (
               <div className="motion-fade-in-slow flex flex-col items-center justify-center text-center w-full">
@@ -156,8 +156,8 @@ export function NewDocumentForm({ user }: { user: AuthenticatedUserSummary }) {
                 onSubmit={handleSubmit}
                 className="motion-fade-in"
               >
-                <div className="space-y-7">
-                  <label className="space-y-3 block">
+                <div className="space-y-5">
+                  <label className="space-y-2 block">
                     <FieldLabel>Content Type</FieldLabel>
                     <AppSelect
                       value={contentType}
@@ -165,7 +165,7 @@ export function NewDocumentForm({ user }: { user: AuthenticatedUserSummary }) {
                       options={contentTypes}
                     />
                   </label>
-                  <label className="space-y-3 block">
+                  <label className="space-y-2 block">
                     <FieldLabel>Title</FieldLabel>
                     <AppInput
                       value={title}
@@ -175,7 +175,7 @@ export function NewDocumentForm({ user }: { user: AuthenticatedUserSummary }) {
                     />
                   </label>
                 </div>
-                <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
                   <AppButton
                     type="submit"
                     disabled={submitting}
