@@ -4,6 +4,7 @@
 .env.production.local
 .env.test.local
 .next
+.pnpm-store
 node_modules
 coverage
 dist
