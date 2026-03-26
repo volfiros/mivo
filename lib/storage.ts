@@ -1,27 +1,27 @@
-import { mkdir, readFile, rm, writeFile } from "fs/promises";
-import { join } from "path";
-import { cwd } from "process";
+import { readFile, rm } from "fs/promises";
 import mammoth from "mammoth";
 import pdfParse from "pdf-parse";
-import { nanoid } from "nanoid";
-
-const uploadDir = join(cwd(), "uploads");
-const generatedImageDir = join(cwd(), "public", "generated");
+import {
+  createStoredAsset,
+  deleteStoredAssetById,
+  getStoredAsset,
+  getStoredAssetIdFromPath,
+} from "@/lib/asset-store";
 
 export async function saveUpload(file: File) {
   const buffer = Buffer.from(await file.arrayBuffer());
-  const id = nanoid();
-  const extension = file.name.includes(".") ? file.name.split(".").pop() : "bin";
-  const storagePath = join(uploadDir, `${id}.${extension}`);
-
-  await mkdir(uploadDir, { recursive: true });
-  await writeFile(storagePath, buffer);
+  const storedAsset = await createStoredAsset({
+    kind: "upload",
+    mimeType: file.type || "application/octet-stream",
+    filename: file.name,
+    buffer
+  });
 
   const extractedText = await extractText(file.type, buffer);
 
   return {
-    id,
-    storagePath,
+    id: storedAsset.id,
+    storagePath: storedAsset.storagePath,
     extractedText
   };
 }
@@ -61,10 +61,29 @@ export function chunkText(text: string, chunkSize = 1200) {
 }
 
 export async function readStoredFile(pathname: string) {
+  const storedAssetId = getStoredAssetIdFromPath(pathname);
+
+  if (storedAssetId) {
+    const asset = await getStoredAsset(storedAssetId);
+
+    if (!asset) {
+      throw new Error("Stored asset not found");
+    }
+
+    return asset.buffer;
+  }
+
   return readFile(pathname);
 }
 
 export async function deleteStoredFile(pathname: string) {
+  const storedAssetId = getStoredAssetIdFromPath(pathname);
+
+  if (storedAssetId) {
+    await deleteStoredAssetById(storedAssetId);
+    return;
+  }
+
   await rm(pathname, { force: true });
 }
 
@@ -72,16 +91,17 @@ export async function saveGeneratedImage(
   buffer: Buffer,
   format: "png" | "jpeg" | "webp" = "webp",
 ) {
-  const id = nanoid();
-  const filename = `${id}.${format === "jpeg" ? "jpg" : format}`;
-  const storagePath = join(generatedImageDir, filename);
-
-  await mkdir(generatedImageDir, { recursive: true });
-  await writeFile(storagePath, buffer);
+  const filename = `generated.${format === "jpeg" ? "jpg" : format}`;
+  const storedAsset = await createStoredAsset({
+    kind: "generated_image",
+    mimeType: format === "png" ? "image/png" : format === "jpeg" ? "image/jpeg" : "image/webp",
+    filename,
+    buffer,
+  });
 
   return {
     filename,
-    publicPath: `/generated/${filename}`,
-    storagePath,
+    publicPath: `/api/assets/${storedAsset.id}`,
+    storagePath: storedAsset.storagePath,
   };
 }

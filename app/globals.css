@@ -27,6 +27,14 @@
 
 * {
     box-sizing: border-box;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
 }
 
 html {
@@ -318,6 +326,28 @@ label {
     min-width: 0;
 }
 
+.app-scroll-area .rt-ScrollAreaViewport,
+.app-scroll-area [data-radix-scroll-area-viewport] {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+
+.app-scroll-area .rt-ScrollAreaViewport::-webkit-scrollbar,
+.app-scroll-area [data-radix-scroll-area-viewport]::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+}
+
+.app-scroll-area .rt-ScrollAreaScrollbar,
+.app-scroll-area .rt-ScrollAreaCorner,
+.app-scroll-area [data-radix-scroll-area-scrollbar],
+.app-scroll-area [data-radix-scroll-area-corner] {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
 .app-badge {
     text-transform: capitalize;
     font-family: var(--font-mono), monospace;
@@ -373,9 +403,19 @@ label {
 
 .no-scrollbar {
     scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.no-scrollbar [data-radix-scroll-area-viewport] {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
 .no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar [data-radix-scroll-area-viewport]::-webkit-scrollbar {
     display: none;
 }
 
@@ -405,6 +445,53 @@ label {
 
 .prose-editor {
     min-height: 100%;
+}
+
+.landing-page-surface {
+    background:
+        linear-gradient(180deg, rgba(8, 12, 10, 0.94), rgba(8, 12, 10, 0.98)),
+        #070b08;
+    box-shadow:
+        0 18px 60px rgba(0, 0, 0, 0.34),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.landing-page-flow h1,
+.landing-page-flow h2,
+.landing-page-flow h3 {
+    font-family: var(--font-display), serif;
+    font-weight: 400;
+    letter-spacing: -0.04em;
+    color: #ffffff;
+}
+
+.landing-page-flow p,
+.landing-page-flow li,
+.landing-page-flow blockquote {
+    overflow-wrap: anywhere;
+}
+
+.landing-page-flow a {
+    color: var(--accent-strong);
+    text-decoration: underline;
+    text-underline-offset: 0.22em;
+}
+
+.landing-page-flow strong {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.landing-page-editor .ProseMirror {
+    min-height: 100%;
+}
+
+.landing-page-editor .ProseMirror > *:first-child {
+    margin-top: 0 !important;
+}
+
+.landing-page-editor .ProseMirror > *:last-child {
+    margin-bottom: 0 !important;
 }
 
 .prose-block {

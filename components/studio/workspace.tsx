@@ -5,7 +5,12 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
+import { clsx } from "clsx";
 import type { AuthenticatedUserSummary } from "@/lib/auth-types";
+import {
+  LandingPageSurface,
+  LandingPageViewport,
+} from "@/components/editor/landing-page-presentation";
 import { buildEditorExtensions } from "@/lib/editor/extensions";
 import { AccountMenu } from "@/components/ui/account-menu";
 import {
@@ -346,6 +351,7 @@ export function Workspace({
   const isViewingHistoricalVersion =
     activeVersionId !== null && activeVersionId !== latestVersionId;
   const previousLatestVersionIdRef = useRef<string | null>(document.currentVersionId);
+  const isLandingPage = contentType === "landing_page";
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -1780,25 +1786,43 @@ export function Workspace({
             </div>
           </div>
 
-          <div className="relative rounded-2xl border border-[var(--border)] bg-[#0A0A0A] shadow-2xl overflow-hidden group flex-1 flex flex-col min-h-0">
-            <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-transparent pointer-events-none" />
-            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-strong)]/50 to-transparent opacity-50" />
+          <div
+            className={clsx(
+              "relative flex-1 flex flex-col min-h-0 overflow-hidden",
+              isLandingPage
+                ? "rounded-[28px] border border-[var(--border)]/70 bg-[#050705]"
+                : "rounded-2xl border border-[var(--border)] bg-[#0A0A0A] shadow-2xl group",
+            )}
+          >
+            {!isLandingPage ? (
+              <>
+                <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-strong)]/50 to-transparent opacity-50" />
 
-            <div className="relative flex items-center gap-2 px-4 py-3 border-b border-[var(--border)]/50 bg-[#0F0F0F] z-10 shrink-0">
-              <div className="flex gap-1.5 opacity-50 group-hover:opacity-100 transition-opacity">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#333333]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[#333333]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[#333333]" />
-              </div>
-              <div className="ml-auto px-2 py-1 rounded bg-[var(--accent)]/20 border border-[var(--accent)]/30 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-strong)] animate-pulse" />
-                <span className="text-[9px] uppercase tracking-widest text-[var(--accent-strong)] font-medium">
-                  Canvas
-                </span>
-              </div>
-            </div>
+                <div className="relative flex items-center gap-2 px-4 py-3 border-b border-[var(--border)]/50 bg-[#0F0F0F] z-10 shrink-0">
+                  <div className="flex gap-1.5 opacity-50 group-hover:opacity-100 transition-opacity">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#333333]" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#333333]" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#333333]" />
+                  </div>
+                  <div className="ml-auto px-2 py-1 rounded bg-[var(--accent)]/20 border border-[var(--accent)]/30 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-strong)] animate-pulse" />
+                    <span className="text-[9px] uppercase tracking-widest text-[var(--accent-strong)] font-medium">
+                      Canvas
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : null}
 
-            <div className="relative flex-1 overflow-y-auto p-6 pb-24 md:p-10 md:pb-28 prose-editor text-white/90 z-10">
+            <div
+              className={clsx(
+                "relative flex-1 overflow-y-auto z-10",
+                isLandingPage
+                  ? "bg-[#050705]"
+                  : "p-6 pb-24 md:p-10 md:pb-28 prose-editor text-white/90",
+              )}
+            >
               {isViewingHistoricalVersion && activeVersionNumber !== null ? (
                 <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-[#111111] px-4 py-3 text-sm text-[var(--text-soft)]">
                   <p>
@@ -1834,7 +1858,15 @@ export function Workspace({
                   ) : null}
                 </div>
               ) : null}
-              <EditorContent editor={editor} className="min-h-full" />
+              {isLandingPage ? (
+                <LandingPageViewport className="px-4 py-8 md:px-8 md:py-10">
+                  <LandingPageSurface className="landing-page-editor min-h-full">
+                    <EditorContent editor={editor} className="min-h-full" />
+                  </LandingPageSurface>
+                </LandingPageViewport>
+              ) : (
+                <EditorContent editor={editor} className="min-h-full" />
+              )}
             </div>
           </div>
         </div>

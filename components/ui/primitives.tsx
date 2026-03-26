@@ -190,7 +190,12 @@ export function AppScrollArea({
   ...props
 }: ComponentPropsWithoutRef<typeof ScrollArea>) {
   return (
-    <ScrollArea {...props} scrollbars="vertical" type="hover" className={clsx("app-scroll-area", className)}>
+    <ScrollArea
+      {...props}
+      scrollbars="vertical"
+      type="hover"
+      className={clsx("app-scroll-area no-scrollbar", className)}
+    >
       {children}
     </ScrollArea>
   );

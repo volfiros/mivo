@@ -15,6 +15,13 @@
       "when": 1774378734055,
       "tag": "0001_light_rogue",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774492752383,
+      "tag": "0002_violet_shard",
+      "breakpoints": true
     }
   ]
 }

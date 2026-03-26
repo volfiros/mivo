@@ -138,6 +138,15 @@ export const attachments = pgTable("attachments", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
 });
 
+export const storedAssets = pgTable("stored_assets", {
+  id: text("id").primaryKey(),
+  kind: text("kind").notNull(),
+  mimeType: text("mime_type").notNull(),
+  filename: text("filename"),
+  dataBase64: text("data_base64").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
+});
+
 export const documentContextChunks = pgTable("document_context_chunks", {
   id: text("id").primaryKey(),
   documentId: text("document_id").notNull(),

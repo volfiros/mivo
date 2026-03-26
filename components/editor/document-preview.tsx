@@ -3,8 +3,18 @@
 import type { ReactNode } from "react";
 import type { Route } from "next";
 import type { JSONContent } from "@tiptap/core";
-import { clsx } from "clsx";
 import type { ContentType } from "@/lib/schema/content";
+import {
+  LandingPageColumn,
+  LandingPageFeatureCard,
+  LandingPageImageFrame,
+  type LandingPageSectionVariant,
+  LandingPageSection,
+  LandingPageSurface,
+  LandingPageViewport,
+  landingPageImagePlaceholderClassName,
+  landingPageImageVisualClassName,
+} from "@/components/editor/landing-page-presentation";
 import { AppButtonLink, AppNavLink } from "@/components/ui/primitives";
 
 type Variant = {
@@ -60,53 +70,6 @@ const sectionLabelClass =
   "border-b border-[var(--border)] pb-2 text-[0.78rem] font-medium text-[var(--text-soft)]";
 const structuredTitleClass = "text-[1.15rem] font-semibold leading-7 text-white";
 const structuredBodyClass = "text-[0.98rem] leading-7 text-[var(--text-soft)]";
-
-function landingSectionPreviewClass(variant: string) {
-  switch (variant) {
-    case "hero":
-      return clsx(
-        "space-y-6 border-t border-[var(--border)] pt-8",
-        "[&>p:first-child]:max-w-[10rem] [&>p:first-child]:text-[0.82rem] [&>p:first-child]:font-medium [&>p:first-child]:uppercase [&>p:first-child]:tracking-[0.22em] [&>p:first-child]:text-[var(--text-soft)]",
-        "[&>h1]:max-w-4xl [&>h1]:text-5xl [&>h1]:font-semibold [&>h1]:leading-[1.02] [&>h1]:tracking-tight [&>h1]:text-white sm:[&>h1]:text-7xl",
-        "[&>p:nth-of-type(2)]:max-w-2xl [&>p:nth-of-type(2)]:text-[1.08rem] [&>p:nth-of-type(2)]:leading-8 [&>p:nth-of-type(2)]:text-[var(--text-soft)]",
-        "[&>p:last-child]:inline-flex [&>p:last-child]:w-fit [&>p:last-child]:border [&>p:last-child]:border-[rgba(66,230,164,0.28)] [&>p:last-child]:px-4 [&>p:last-child]:py-2 [&>p:last-child]:text-sm [&>p:last-child]:font-semibold [&>p:last-child]:tracking-[0.06em] [&>p:last-child]:text-white",
-      );
-    case "feature-grid":
-      return "grid gap-5 border-t border-[var(--border)] pt-8 md:grid-cols-2";
-    case "two-column":
-      return "grid gap-8 border-t border-[var(--border)] pt-8 md:grid-cols-2";
-    case "image-with-copy":
-      return "grid gap-8 border-t border-[var(--border)] pt-8 md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] md:items-center";
-    case "quote":
-      return clsx(
-        "space-y-4 border-t border-[var(--border)] pt-8",
-        "[&>blockquote]:border-l-2 [&>blockquote]:border-[var(--accent-strong)]/40 [&>blockquote]:pl-6 [&>blockquote>p]:text-[1.22rem] [&>blockquote>p]:leading-9 [&>blockquote>p]:text-white",
-        "[&>p]:text-[1rem] [&>p]:font-semibold [&>p]:tracking-tight [&>p]:text-[var(--text-soft)]",
-      );
-    case "cta":
-      return clsx(
-        "space-y-4 border-t border-[var(--border)] pt-8",
-        "[&>.landing-cta-shell]:space-y-4 [&>.landing-cta-shell]:border [&>.landing-cta-shell]:border-[rgba(66,230,164,0.18)] [&>.landing-cta-shell]:bg-[rgba(17,31,24,0.65)] [&>.landing-cta-shell]:px-6 [&>.landing-cta-shell]:py-6",
-        "[&>.landing-cta-shell>h2]:text-[1.8rem] [&>.landing-cta-shell>h2]:font-semibold [&>.landing-cta-shell>h2]:tracking-tight [&>.landing-cta-shell>h2]:text-white",
-        "[&>.landing-cta-shell>p:first-of-type]:max-w-3xl [&>.landing-cta-shell>p:first-of-type]:text-[1rem] [&>.landing-cta-shell>p:first-of-type]:leading-8 [&>.landing-cta-shell>p:first-of-type]:text-[var(--text-soft)]",
-        "[&>.landing-cta-shell>p:last-child]:text-[1rem] [&>.landing-cta-shell>p:last-child]:font-semibold [&>.landing-cta-shell>p:last-child]:text-white",
-      );
-    case "callout":
-      return clsx(
-        "border-t border-[var(--border)] pt-8",
-        "[&>.landing-callout-shell]:space-y-4 [&>.landing-callout-shell]:border-l-2 [&>.landing-callout-shell]:border-[var(--accent-strong)]/45 [&>.landing-callout-shell]:pl-6",
-        "[&>.landing-callout-shell>h3]:text-[1.25rem] [&>.landing-callout-shell>h3]:font-semibold [&>.landing-callout-shell>h3]:tracking-tight [&>.landing-callout-shell>h3]:text-white",
-        "[&>.landing-callout-shell>p]:text-[1rem] [&>.landing-callout-shell>p]:leading-8 [&>.landing-callout-shell>p]:text-[var(--text-soft)]",
-      );
-    default:
-      return clsx(
-        "space-y-4 border-t border-[var(--border)] pt-8",
-        "[&>h2]:text-[1.85rem] [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-white",
-        "[&>h3]:text-[1.2rem] [&>h3]:font-semibold [&>h3]:tracking-tight [&>h3]:text-white",
-        "[&>p]:text-[1rem] [&>p]:leading-8 [&>p]:text-[var(--text-soft)]",
-      );
-  }
-}
 
 function renderMark(
   type: string,
@@ -211,51 +174,129 @@ function ensureText(value: unknown, fallback = "") {
   return fallback.trim();
 }
 
+function renderLandingNode(node: JSONContent): ReactNode | null {
+  if (!node.type) {
+    return null;
+  }
+
+  if (node.type === "landingSection") {
+    const sectionLabel = ensureText(node.attrs?.label, "Section");
+    const sectionVariant = ensureText(
+      node.attrs?.variant,
+      "text",
+    ) as LandingPageSectionVariant;
+
+    return (
+      <LandingPageSection label={sectionLabel} variant={sectionVariant}>
+        {renderChildren(node.content, "landing_page")}
+      </LandingPageSection>
+    );
+  }
+
+  if (node.type === "landingColumn") {
+    return (
+      <LandingPageColumn>
+        {renderChildren(node.content, "landing_page")}
+      </LandingPageColumn>
+    );
+  }
+
+  if (node.type === "landingFeatureCard") {
+    return (
+      <LandingPageFeatureCard>
+        {renderChildren(node.content, "landing_page")}
+      </LandingPageFeatureCard>
+    );
+  }
+
+  if (node.type === "paragraph") {
+    return <p className="mb-4">{renderChildren(node.content, "landing_page")}</p>;
+  }
+
+  if (node.type === "heading") {
+    const level = Number(node.attrs?.level ?? 2);
+    const Tag = level === 1 ? "h1" : level === 3 ? "h3" : "h2";
+    const className =
+      level === 1
+        ? "mb-5"
+        : level === 3
+          ? "mb-3 mt-7"
+          : "mb-4 mt-8";
+
+    return <Tag className={className}>{renderChildren(node.content, "landing_page")}</Tag>;
+  }
+
+  if (node.type === "bulletList") {
+    return <ul className="mb-5 list-disc space-y-2 pl-6">{renderChildren(node.content, "landing_page")}</ul>;
+  }
+
+  if (node.type === "orderedList") {
+    return <ol className="mb-5 list-decimal space-y-2 pl-6">{renderChildren(node.content, "landing_page")}</ol>;
+  }
+
+  if (node.type === "listItem") {
+    return <li>{renderChildren(node.content, "landing_page")}</li>;
+  }
+
+  if (node.type === "blockquote") {
+    return <blockquote className="mb-4">{renderChildren(node.content, "landing_page")}</blockquote>;
+  }
+
+  if (node.type === "horizontalRule") {
+    return <hr className="my-12 border-[var(--border)]" />;
+  }
+
+  if (node.type === "codeBlock") {
+    return (
+      <pre className="mb-6 overflow-x-auto rounded-[18px] border border-[var(--border)] bg-[#101410] p-5 text-sm leading-7 text-[#d7dfdb]">
+        <code>{extractPlainText(node.content)}</code>
+      </pre>
+    );
+  }
+
+  if (node.type === "generatedImage") {
+    const src = ensureText(node.attrs?.src);
+    const alt = ensureText(node.attrs?.alt, "Generated image");
+
+    return (
+      <LandingPageImageFrame>
+        {src ? (
+          <div
+            role="img"
+            aria-label={alt}
+            className={landingPageImageVisualClassName}
+            style={{ backgroundImage: `url(${src})` }}
+          />
+        ) : (
+          <div className={landingPageImagePlaceholderClassName}>
+            Image placeholder
+          </div>
+        )}
+      </LandingPageImageFrame>
+    );
+  }
+
+  if (node.type === "doc") {
+    return <>{renderChildren(node.content, "landing_page")}</>;
+  }
+
+  return null;
+}
+
 function RenderNode({ node, contentType }: RenderNodeProps) {
   if (!node.type) {
     return null;
   }
 
+  if (contentType === "landing_page") {
+    const renderedLandingNode = renderLandingNode(node);
+
+    if (renderedLandingNode) {
+      return renderedLandingNode;
+    }
+  }
+
   const variant = previewVariants[contentType];
-
-  if (node.type === "landingSection") {
-    const sectionLabel = ensureText(node.attrs?.label, "Section");
-    const sectionVariant = ensureText(node.attrs?.variant, "text");
-    const renderedChildren = renderChildren(node.content, contentType);
-
-    return (
-      <section className={variant.sectionSpacing}>
-        <div className="mb-5 text-[0.78rem] font-medium tracking-[0.18em] text-[var(--text-soft)]">
-          {sectionLabel}
-        </div>
-        {sectionVariant === "cta" ? (
-          <div className={landingSectionPreviewClass(sectionVariant)}>
-            <div className="landing-cta-shell">{renderedChildren}</div>
-          </div>
-        ) : sectionVariant === "callout" ? (
-          <div className={landingSectionPreviewClass(sectionVariant)}>
-            <div className="landing-callout-shell">{renderedChildren}</div>
-          </div>
-        ) : (
-          <div className={landingSectionPreviewClass(sectionVariant)}>
-            {renderedChildren}
-          </div>
-        )}
-      </section>
-    );
-  }
-
-  if (node.type === "landingColumn") {
-    return <div className="min-w-0">{renderChildren(node.content, contentType)}</div>;
-  }
-
-  if (node.type === "landingFeatureCard") {
-    return (
-      <div className="border border-[var(--border)] bg-[rgba(15,15,15,0.82)] px-5 py-5">
-        {renderChildren(node.content, contentType)}
-      </div>
-    );
-  }
 
   if (node.type === "paragraph") {
     return <p className={`mb-4 ${variant.body}`}>{renderChildren(node.content, contentType)}</p>;
@@ -538,9 +579,17 @@ export function DocumentPreview({
             </AppButtonLink>
           </div>
         </header>
-        <article className={variant.canvas}>
-          <RenderNode node={content} contentType={contentType} />
-        </article>
+        {contentType === "landing_page" ? (
+          <LandingPageViewport>
+            <LandingPageSurface>
+              <RenderNode node={content} contentType={contentType} />
+            </LandingPageSurface>
+          </LandingPageViewport>
+        ) : (
+          <article className={variant.canvas}>
+            <RenderNode node={content} contentType={contentType} />
+          </article>
+        )}
       </div>
     </main>
   );

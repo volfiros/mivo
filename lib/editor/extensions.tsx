@@ -7,6 +7,18 @@ import StarterKit from "@tiptap/starter-kit";
 import { NodeViewContent, ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import { clsx } from "clsx";
 import type { ContentType } from "@/lib/schema/content";
+import {
+  LandingPageImageFrame,
+  getLandingPageSectionBodyClass,
+  landingPageImagePlaceholderClassName,
+  landingPageImageVisualClassName,
+  landingPageColumnClassName,
+  landingPageColumnContentClassName,
+  landingPageFeatureCardClassName,
+  landingPageFeatureCardContentClassName,
+  type LandingPageSectionVariant,
+  LandingPageSectionLabel,
+} from "@/components/editor/landing-page-presentation";
 import { AppPanel } from "@/components/ui/primitives";
 
 type BlockProps = {
@@ -86,72 +98,43 @@ function SectionHeaderView({
   );
 }
 
-function landingSectionContentClass(variant: string) {
-  switch (variant) {
-    case "hero":
-      return clsx(
-        "space-y-6",
-        "[&>p:first-child]:max-w-[10rem] [&>p:first-child]:text-[0.82rem] [&>p:first-child]:font-medium [&>p:first-child]:uppercase [&>p:first-child]:tracking-[0.22em] [&>p:first-child]:text-[var(--text-soft)]",
-        "[&>h1]:max-w-4xl [&>h1]:text-5xl [&>h1]:font-semibold [&>h1]:leading-[1.02] [&>h1]:tracking-tight [&>h1]:text-white md:[&>h1]:text-7xl",
-        "[&>p:nth-of-type(2)]:max-w-2xl [&>p:nth-of-type(2)]:text-[1.08rem] [&>p:nth-of-type(2)]:leading-8 [&>p:nth-of-type(2)]:text-[var(--text-soft)]",
-        "[&>p:last-child]:inline-flex [&>p:last-child]:w-fit [&>p:last-child]:border [&>p:last-child]:border-[rgba(66,230,164,0.28)] [&>p:last-child]:px-4 [&>p:last-child]:py-2 [&>p:last-child]:text-sm [&>p:last-child]:font-semibold [&>p:last-child]:tracking-[0.06em] [&>p:last-child]:text-white",
-      );
-    case "feature-grid":
-      return "grid gap-5 md:grid-cols-2";
-    case "two-column":
-      return "grid gap-8 md:grid-cols-2";
-    case "image-with-copy":
-      return "grid gap-8 md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] md:items-center";
-    case "quote":
-      return clsx(
-        "space-y-4",
-        "[&>blockquote]:border-l-2 [&>blockquote]:border-[var(--accent-strong)]/40 [&>blockquote]:pl-6 [&>blockquote>p]:text-[1.22rem] [&>blockquote>p]:leading-9 [&>blockquote>p]:text-white",
-        "[&>p]:text-[1rem] [&>p]:font-semibold [&>p]:tracking-tight [&>p]:text-[var(--text-soft)]",
-      );
-    case "cta":
-      return clsx(
-        "space-y-4 rounded-[10px] border border-[rgba(66,230,164,0.18)] bg-[rgba(17,31,24,0.65)] px-6 py-6",
-        "[&>h2]:text-[1.8rem] [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-white",
-        "[&>p:first-of-type]:max-w-3xl [&>p:first-of-type]:text-[1rem] [&>p:first-of-type]:leading-8 [&>p:first-of-type]:text-[var(--text-soft)]",
-        "[&>p:last-child]:text-[1rem] [&>p:last-child]:font-semibold [&>p:last-child]:text-white",
-      );
-    case "callout":
-      return clsx(
-        "space-y-4 border-l-2 border-[var(--accent-strong)]/45 pl-6",
-        "[&>h3]:text-[1.25rem] [&>h3]:font-semibold [&>h3]:tracking-tight [&>h3]:text-white",
-        "[&>p]:text-[1rem] [&>p]:leading-8 [&>p]:text-[var(--text-soft)]",
-      );
-    default:
-      return clsx(
-        "space-y-4",
-        "[&>h2]:text-[1.85rem] [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-white",
-        "[&>h3]:text-[1.2rem] [&>h3]:font-semibold [&>h3]:tracking-tight [&>h3]:text-white",
-        "[&>p]:text-[1rem] [&>p]:leading-8 [&>p]:text-[var(--text-soft)]",
-      );
-  }
-}
-
 function LandingSectionView({
   node,
   selected,
 }: Pick<BlockProps, "node" | "selected">) {
   const label = ensureText(node.attrs.label, "Section");
-  const variant = ensureText(node.attrs.variant, "text");
+  const variant = ensureText(
+    node.attrs.variant,
+    "text",
+  ) as LandingPageSectionVariant;
 
   return (
     <NodeViewWrapper
       className={clsx(
-        "my-10 border-t border-[var(--border)] pt-7",
-        selected ? "border-[rgba(66,230,164,0.45)]" : "",
+        "my-16",
+        selected
+          ? "rounded-[20px] outline outline-1 outline-[rgba(66,230,164,0.24)] outline-offset-8"
+          : "",
       )}
     >
-      <div
-        contentEditable={false}
-        className="mb-5 text-[0.78rem] font-medium tracking-[0.18em] text-[var(--text-soft)]"
-      >
+      <LandingPageSectionLabel contentEditable={false}>
         {label}
-      </div>
-      <NodeViewContent className={landingSectionContentClass(variant)} />
+      </LandingPageSectionLabel>
+      {variant === "cta" ? (
+        <div className={getLandingPageSectionBodyClass(variant)}>
+          <div className="landing-page-cta-shell">
+            <NodeViewContent className="landing-page-flow min-w-0" />
+          </div>
+        </div>
+      ) : variant === "callout" ? (
+        <div className={getLandingPageSectionBodyClass(variant)}>
+          <div className="landing-page-callout-shell">
+            <NodeViewContent className="landing-page-flow min-w-0" />
+          </div>
+        </div>
+      ) : (
+        <NodeViewContent className={getLandingPageSectionBodyClass(variant)} />
+      )}
     </NodeViewWrapper>
   );
 }
@@ -160,11 +143,13 @@ function LandingColumnView({ selected }: Pick<BlockProps, "selected">) {
   return (
     <NodeViewWrapper
       className={clsx(
-        "min-w-0",
-        selected ? "ring-1 ring-[rgba(66,230,164,0.3)]" : "",
+        landingPageColumnClassName,
+        selected
+          ? "rounded-[18px] outline outline-1 outline-[rgba(66,230,164,0.22)] outline-offset-6"
+          : "",
       )}
     >
-      <NodeViewContent className="space-y-4" />
+      <NodeViewContent className={landingPageColumnContentClassName} />
     </NodeViewWrapper>
   );
 }
@@ -173,11 +158,13 @@ function LandingFeatureCardView({ selected }: Pick<BlockProps, "selected">) {
   return (
     <NodeViewWrapper
       className={clsx(
-        "border border-[var(--border)] bg-[rgba(15,15,15,0.82)] px-5 py-5",
-        selected ? "border-[rgba(66,230,164,0.45)]" : "",
+        landingPageFeatureCardClassName,
+        selected
+          ? "rounded-[22px] outline outline-1 outline-[rgba(66,230,164,0.24)] outline-offset-6"
+          : "",
       )}
     >
-      <NodeViewContent className="space-y-3 [&>h3]:text-[1.1rem] [&>h3]:font-semibold [&>h3]:tracking-tight [&>h3]:text-white [&>p]:text-[0.98rem] [&>p]:leading-7 [&>p]:text-[var(--text-soft)]" />
+      <NodeViewContent className={landingPageFeatureCardContentClassName} />
     </NodeViewWrapper>
   );
 }
@@ -252,9 +239,37 @@ function ImageWithCopyView({ node, selected }: BlockProps) {
 function GeneratedImageView({
   node,
   selected,
-}: Pick<BlockProps, "node" | "selected">) {
+  contentType,
+}: Pick<BlockProps, "node" | "selected"> & { contentType: ContentType }) {
   const src = ensureText(node.attrs.src);
   const alt = ensureText(node.attrs.alt, "Generated image");
+
+  if (contentType === "landing_page") {
+    return (
+      <NodeViewWrapper className="my-0">
+        <LandingPageImageFrame
+          className={clsx(
+            selected
+              ? "outline outline-1 outline-[rgba(66,230,164,0.24)] outline-offset-8"
+              : "",
+          )}
+        >
+          {src ? (
+            <div
+              role="img"
+              aria-label={alt}
+              className={landingPageImageVisualClassName}
+              style={{ backgroundImage: `url(${src})` }}
+            />
+          ) : (
+            <div className={landingPageImagePlaceholderClassName}>
+              Image placeholder
+            </div>
+          )}
+        </LandingPageImageFrame>
+      </NodeViewWrapper>
+    );
+  }
 
   return (
     <NodeViewWrapper className="my-5">
@@ -363,12 +378,62 @@ function FeatureGridView({ node, selected }: BlockProps) {
   );
 }
 
-function PlaceholderView({ node, selected }: Pick<BlockProps, "node" | "selected">) {
+function PlaceholderView({
+  node,
+  selected,
+  contentType,
+}: Pick<BlockProps, "node" | "selected"> & { contentType: ContentType }) {
   const preview =
     typeof node.attrs.preview === "string" ? node.attrs.preview : "";
   const previewKind =
     node.attrs.previewKind === "rich_text" ? "rich_text" : "plain";
   const previewSections = splitSections(preview);
+
+  if (contentType === "landing_page") {
+    return (
+      <NodeViewWrapper className="my-16">
+        <LandingPageSectionLabel contentEditable={false}>
+          {ensureText(node.attrs.label, "Generating")}
+        </LandingPageSectionLabel>
+        <div
+          className={clsx(
+            getLandingPageSectionBodyClass("text"),
+            selected
+              ? "rounded-[20px] outline outline-1 outline-[rgba(66,230,164,0.24)] outline-offset-8"
+              : "",
+          )}
+        >
+          <div className="placeholder-block pulse-line rounded-[22px] border border-dashed border-[rgba(66,230,164,0.28)] bg-[rgba(12,19,15,0.75)] px-6 py-6">
+            {preview ? (
+              previewKind === "rich_text" && previewSections.length ? (
+                <div className="space-y-3">
+                  <p className="text-[1.55rem] leading-[1.08] tracking-[-0.04em] text-white whitespace-pre-wrap">
+                    {previewSections[0]}
+                  </p>
+                  {previewSections.slice(1).map((section, index) => (
+                    <p
+                      key={`${node.attrs.blockId}-preview-${index}`}
+                      className="text-[1rem] leading-8 text-[var(--text-soft)] whitespace-pre-wrap"
+                    >
+                      {section}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[1rem] leading-8 text-[var(--text-soft)] whitespace-pre-wrap">
+                  {preview}
+                </p>
+              )
+            ) : (
+              <p className="text-sm text-[var(--text-soft)]">
+                Generating landing page section...
+              </p>
+            )}
+          </div>
+        </div>
+      </NodeViewWrapper>
+    );
+  }
 
   return (
     <NodeViewWrapper className="my-5">
@@ -407,6 +472,63 @@ function PlaceholderView({ node, selected }: Pick<BlockProps, "node" | "selected
       </AppPanel>
     </NodeViewWrapper>
   );
+}
+
+function buildGeneratedImageExtension(contentType: ContentType) {
+  return Node.create({
+    name: "generatedImage",
+    group: "block",
+    atom: true,
+    selectable: true,
+    draggable: false,
+    addAttributes() {
+      return {
+        blockId: { default: "" },
+        src: { default: "" },
+        alt: { default: "Generated image" },
+      };
+    },
+    parseHTML() {
+      return [{ tag: "mivo-generated-image" }];
+    },
+    renderHTML({ HTMLAttributes }) {
+      return ["mivo-generated-image", mergeAttributes(HTMLAttributes)];
+    },
+    addNodeView() {
+      return ReactNodeViewRenderer((props) => (
+        <GeneratedImageView {...props} contentType={contentType} />
+      ));
+    },
+  });
+}
+
+function buildAiPlaceholderExtension(contentType: ContentType) {
+  return Node.create({
+    name: "aiPlaceholder",
+    group: "block",
+    atom: true,
+    selectable: true,
+    addAttributes() {
+      return {
+        blockId: { default: "" },
+        label: { default: "" },
+        preview: { default: "" },
+        previewKind: { default: "plain" },
+        status: { default: "queued" },
+      };
+    },
+    parseHTML() {
+      return [{ tag: "mivo-ai-placeholder" }];
+    },
+    renderHTML({ HTMLAttributes }) {
+      return ["mivo-ai-placeholder", mergeAttributes(HTMLAttributes)];
+    },
+    addNodeView() {
+      return ReactNodeViewRenderer((props) => (
+        <PlaceholderView {...props} contentType={contentType} />
+      ));
+    },
+  });
 }
 
 function createBlockNode(config: {
@@ -459,30 +581,6 @@ export const SectionHeader = Node.create({
   },
   addNodeView() {
     return ReactNodeViewRenderer(SectionHeaderView);
-  },
-});
-
-export const GeneratedImage = Node.create({
-  name: "generatedImage",
-  group: "block",
-  atom: true,
-  selectable: true,
-  draggable: false,
-  addAttributes() {
-    return {
-      blockId: { default: "" },
-      src: { default: "" },
-      alt: { default: "Generated image" },
-    };
-  },
-  parseHTML() {
-    return [{ tag: "mivo-generated-image" }];
-  },
-  renderHTML({ HTMLAttributes }) {
-    return ["mivo-generated-image", mergeAttributes(HTMLAttributes)];
-  },
-  addNodeView() {
-    return ReactNodeViewRenderer(GeneratedImageView);
   },
 });
 
@@ -641,31 +739,6 @@ export const FeatureGrid = createBlockNode({
   },
 });
 
-export const AiPlaceholder = Node.create({
-  name: "aiPlaceholder",
-  group: "block",
-  atom: true,
-  selectable: true,
-  addAttributes() {
-    return {
-      blockId: { default: "" },
-      label: { default: "" },
-      preview: { default: "" },
-      previewKind: { default: "plain" },
-      status: { default: "queued" },
-    };
-  },
-  parseHTML() {
-    return [{ tag: "mivo-ai-placeholder" }];
-  },
-  renderHTML({ HTMLAttributes }) {
-    return ["mivo-ai-placeholder", mergeAttributes(HTMLAttributes)];
-  },
-  addNodeView() {
-    return ReactNodeViewRenderer(PlaceholderView);
-  },
-});
-
 export function buildEditorExtensions(contentType: ContentType) {
   return [
     StarterKit.configure({
@@ -679,7 +752,7 @@ export function buildEditorExtensions(contentType: ContentType) {
           ? "Start editing or generate a landing page draft"
           : "Start editing or generate a structured draft",
     }),
-    GeneratedImage,
+    buildGeneratedImageExtension(contentType),
     SectionHeader,
     LandingSection,
     LandingColumn,
@@ -691,7 +764,7 @@ export function buildEditorExtensions(contentType: ContentType) {
     QuoteBlock,
     CtaBanner,
     FeatureGrid,
-    AiPlaceholder,
+    buildAiPlaceholderExtension(contentType),
   ];
 }
 
