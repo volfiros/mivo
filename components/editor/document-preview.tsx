@@ -225,6 +225,28 @@ function RenderNode({ node, contentType }: RenderNodeProps) {
     );
   }
 
+  if (node.type === "generatedImage") {
+    const src = ensureText(node.attrs?.src);
+    const alt = ensureText(node.attrs?.alt, "Generated image");
+
+    return (
+      <div className="mb-6 overflow-hidden rounded-xl border border-[var(--border)] bg-[#121212]">
+        {src ? (
+          <div
+            role="img"
+            aria-label={alt}
+            className="min-h-[220px] w-full bg-cover bg-center"
+            style={{ backgroundImage: `url(${src})`, minHeight: 220, maxHeight: 520 }}
+          />
+        ) : (
+          <div className="flex min-h-[220px] items-center justify-center px-6 text-sm text-[var(--text-soft)]">
+            Image placeholder
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (node.type === "heroSection") {
     const sectionLabel = ensureText(node.attrs?.sectionLabel, "Hero");
     const eyebrow = ensureText(node.attrs?.eyebrow, sectionLabel);
@@ -242,7 +264,7 @@ function RenderNode({ node, contentType }: RenderNodeProps) {
         ) : null}
         <h1 className={structuredTitleClass}>{title}</h1>
         <p className={`mt-3 ${structuredBodyClass}`}>{subtitle}</p>
-        <p className="mt-4 text-[0.98rem] font-medium leading-7 text-white">{actionLabel}</p>
+        <p className="mt-4 text-[0.98rem] font-semibold leading-7 text-white">{actionLabel}</p>
       </section>
     );
   }

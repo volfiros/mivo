@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
-import { nanoid } from "nanoid";
 import type { JSONContent } from "@tiptap/core";
 import { requireRequestUser } from "@/lib/auth-helpers";
 import {
   appendGenerationEvent,
+  claimQueuedGenerationJob,
   getAttachmentContext,
+  getGenerationEventsSince,
   getGenerationJobForUser,
   getOwnedDocument,
-  saveDocumentDraft,
   setJobStatus
 } from "@/lib/records";
 import {
   blockDataToNodes,
   buildStreamingPreview,
   createInitialDocumentTitle,
+  generateImageForBlock,
   generateOutline,
   sanitizeContentType,
   streamBlock
@@ -21,7 +22,9 @@ import {
 import {
   insertPlaceholderNodes,
   replacePlaceholderWithNodes,
-  sanitizeDocumentContent
+  sanitizeDocumentContent,
+  updateGeneratedImageSource,
+  updatePlaceholderPreview
 } from "@/lib/schema/editor";
 import type { Outline } from "@/lib/schema/content";
 
@@ -32,8 +35,8 @@ type OutboundEvent = {
 
 const encoder = new TextEncoder();
 
-function toSse(event: OutboundEvent) {
-  return `data: ${JSON.stringify(event)}\n\n`;
+function toSse(event: OutboundEvent, id?: number) {
+  return `${typeof id === "number" ? `id: ${id}\n` : ""}data: ${JSON.stringify(event)}\n\n`;
 }
 
 function yieldForStreaming() {
@@ -260,23 +263,65 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
     return NextResponse.json({ error: "Generation job not found" }, { status: 404 });
   }
 
+  const lastEventIdHeader = request.headers.get("last-event-id");
+  const lastEventSequence = Number.parseInt(lastEventIdHeader ?? "0", 10);
+  const initialSequence = Number.isFinite(lastEventSequence) ? lastEventSequence : 0;
+
   const stream = new ReadableStream({
     async start(controller) {
+      let lastDeliveredSequence = initialSequence;
+      let activeBlockId: string | null = null;
+
+      const replayPersistedEvents = async () => {
+        const events = await getGenerationEventsSince(jobId, lastDeliveredSequence);
+
+        for (const event of events) {
+          const outboundEvent = {
+            type: event.eventType,
+            payload: event.payload as Record<string, unknown>,
+          };
+
+          controller.enqueue(
+            encoder.encode(toSse(outboundEvent, event.sequence)),
+          );
+          lastDeliveredSequence = event.sequence;
+        }
+      };
+
       const send = async (
         event: OutboundEvent,
         options?: { persist?: boolean }
       ) => {
-        controller.enqueue(encoder.encode(toSse(event)));
-
         if (options?.persist === false) {
+          controller.enqueue(encoder.encode(toSse(event)));
           return;
         }
 
-        await appendGenerationEvent(jobId, event.type, event.payload);
+        const sequence = await appendGenerationEvent(jobId, event.type, event.payload);
+        controller.enqueue(encoder.encode(toSse(event, sequence)));
+        lastDeliveredSequence = sequence;
       };
 
       try {
-        await setJobStatus(jobId, "running", 0);
+        await replayPersistedEvents();
+
+        const claimedJob = await claimQueuedGenerationJob(jobId);
+
+        if (!claimedJob) {
+          while (true) {
+            await replayPersistedEvents();
+
+            const currentJob = await getGenerationJobForUser(authState.user.id, jobId);
+
+            if (!currentJob || ["completed", "failed", "cancelled"].includes(currentJob.status)) {
+              controller.close();
+              return;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 300));
+          }
+        }
+
         await send({ type: "generation.started", payload: { jobId } });
 
         const requestPayload = job.requestPayload as {
@@ -321,6 +366,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
         }));
         let priorBlocks = "";
         let currentJson = insertPlaceholderNodes(baseContent, placeholders);
+        const imageGenerationTasks: Array<Promise<void>> = [];
 
         await send({
           type: "outline.ready",
@@ -340,95 +386,151 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
             return;
           }
 
-          let preview = "";
-          let streamedPreviewText = "";
-          const previewKind = buildStreamingPreview(
-            block.type as Parameters<typeof buildStreamingPreview>[0],
-            ""
-          ).kind;
+          activeBlockId = block.blockId;
 
-          const structuredBlock = await streamBlock({
-            contentType,
-            blockType: block.type as Parameters<typeof streamBlock>[0]["blockType"],
-            prompt: requestPayload.prompt,
-            context: attachmentContext,
-            title: nextTitle,
-            outlineGoal: block.goal,
-            priorBlocks,
-            onDelta: async (delta) => {
-              for (const character of Array.from(delta)) {
-                preview += character;
-                const nextPreview = buildStreamingPreview(
-                  block.type as Parameters<typeof streamBlock>[0]["blockType"],
-                  preview
-                );
-                const nextPreviewText = nextPreview.text;
-                const canAppend = nextPreviewText.startsWith(streamedPreviewText);
-                const previewDelta = canAppend
-                  ? nextPreviewText.slice(streamedPreviewText.length)
-                  : nextPreviewText;
+          try {
+            let preview = "";
+            let streamedPreviewText = "";
+            const previewKind = buildStreamingPreview(
+              block.type as Parameters<typeof buildStreamingPreview>[0],
+              ""
+            ).kind;
 
-                if (!previewDelta) {
+            const structuredBlock = await streamBlock({
+              contentType,
+              blockType: block.type as Parameters<typeof streamBlock>[0]["blockType"],
+              prompt: requestPayload.prompt,
+              context: attachmentContext,
+              title: nextTitle,
+              outlineGoal: block.goal,
+              priorBlocks,
+              onDelta: async (delta) => {
+                for (const character of Array.from(delta)) {
+                  preview += character;
+                  const nextPreview = buildStreamingPreview(
+                    block.type as Parameters<typeof streamBlock>[0]["blockType"],
+                    preview
+                  );
+                  const nextPreviewText = nextPreview.text;
+                  const canAppend = nextPreviewText.startsWith(streamedPreviewText);
+                  const previewDelta = canAppend
+                    ? nextPreviewText.slice(streamedPreviewText.length)
+                    : nextPreviewText;
+
+                  if (!previewDelta) {
+                    await yieldForStreaming();
+                    continue;
+                  }
+
+                  streamedPreviewText = nextPreviewText;
+
+                  await send(
+                    {
+                      type: "block.preview_delta",
+                      payload: {
+                        blockId: block.blockId,
+                        delta: previewDelta,
+                        preview: canAppend ? undefined : nextPreviewText,
+                        previewKind,
+                        replace: !canAppend
+                      }
+                    },
+                    { persist: false }
+                  );
                   await yieldForStreaming();
-                  continue;
                 }
+              }
+            });
 
-                streamedPreviewText = nextPreviewText;
+            const nodes = hydrateNodesFromPreview(
+              block.type,
+              blockDataToNodes(
+                block.blockId,
+                ensureRenderableBlock(
+                  block.type,
+                  structuredBlock as Record<string, unknown>,
+                  block.label,
+                  block.goal,
+                ) as never,
+                block.label,
+              ),
+              preview
+            );
+            currentJson = replacePlaceholderWithNodes(currentJson, block.blockId, nodes);
+            priorBlocks = [priorBlocks, `${block.type}: ${block.label}`].filter(Boolean).join("\n");
 
-                await send(
-                  {
-                    type: "block.preview_delta",
+            await send({
+              type: "block.completed",
+              payload: {
+                blockId: block.blockId,
+                nodes
+              }
+            });
+
+            if (block.type === "image_with_copy") {
+              const imageBlock = structuredBlock as {
+                title: string;
+                body: string;
+                imagePrompt?: string;
+              };
+
+              imageGenerationTasks.push(
+                (async () => {
+                  const imageUrl = await generateImageForBlock({
+                    contentType,
+                    title: imageBlock.title,
+                    body: imageBlock.body,
+                    imagePrompt: imageBlock.imagePrompt,
+                  });
+
+                  if (!imageUrl) {
+                    return;
+                  }
+
+                  currentJson = updateGeneratedImageSource(
+                    currentJson,
+                    block.blockId,
+                    imageUrl,
+                  );
+
+                  await send({
+                    type: "block.asset_ready",
                     payload: {
                       blockId: block.blockId,
-                      delta: previewDelta,
-                      previewKind,
-                      replace: !canAppend
+                      imageUrl,
                     }
-                  },
-                  { persist: false }
-                );
-                await yieldForStreaming();
-              }
+                  });
+                })()
+              );
             }
-          });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Generation failed";
 
-          const nodes = hydrateNodesFromPreview(
-            block.type,
-            blockDataToNodes(
+            currentJson = updatePlaceholderPreview(
+              currentJson,
               block.blockId,
-              ensureRenderableBlock(
-                block.type,
-                structuredBlock as Record<string, unknown>,
-                block.label,
-                block.goal,
-              ) as never,
-              block.label,
-            ),
-            preview
-          );
-          currentJson = replacePlaceholderWithNodes(currentJson, block.blockId, nodes);
-          priorBlocks = [priorBlocks, `${block.type}: ${block.label}`].filter(Boolean).join("\n");
+              message,
+              "failed",
+            );
 
-          await send({
-            type: "block.completed",
-            payload: {
-              blockId: block.blockId,
-              nodes
-            }
-          });
+            await send({
+              type: "block.failed",
+              payload: {
+                blockId: block.blockId,
+                error: message,
+              }
+            });
+          } finally {
+            activeBlockId = null;
+          }
 
           await setJobStatus(jobId, "running", Math.round(((index + 1) / totalBlocks) * 100));
         }
 
-        const versionId = await saveDocumentDraft({
-          userId: authState.user.id,
-          documentId: requestPayload.documentId,
-          title: nextTitle,
-          content: currentJson,
-        });
+        await Promise.all(imageGenerationTasks);
 
         await setJobStatus(jobId, "completed", 100);
-        await send({ type: "generation.completed", payload: { versionId } });
+        await send({ type: "generation.completed", payload: { versionId: null } });
 
         controller.close();
       } catch (error) {
@@ -436,7 +538,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
         await send({
           type: "block.failed",
           payload: {
-            blockId: nanoid(),
+            blockId: activeBlockId ?? "__generation__",
             error: error instanceof Error ? error.message : "Generation failed"
           }
         });

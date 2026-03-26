@@ -27,7 +27,14 @@ export const twoColumnBlockSchema = z.object({
 
 export const imageWithCopyBlockSchema = z.object({
   type: z.literal("image_with_copy"),
-  imageUrl: z.string().url().or(z.string().startsWith("/")).or(z.literal("")),
+  imageUrl: z
+    .string()
+    .url()
+    .or(z.string().startsWith("/"))
+    .or(z.literal(""))
+    .optional()
+    .default(""),
+  imagePrompt: z.string().trim().optional().default(""),
   title: nonEmptyText,
   body: nonEmptyText
 });

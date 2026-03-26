@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, max } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, max } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { JSONContent } from "@tiptap/core";
 import { applyPatch } from "fast-json-patch";
@@ -532,6 +532,34 @@ export async function getGenerationEvents(jobId: string) {
     .from(generationEvents)
     .where(eq(generationEvents.jobId, jobId))
     .orderBy(asc(generationEvents.sequence));
+}
+
+export async function getGenerationEventsSince(jobId: string, sequence: number) {
+  await ensureDatabase();
+  const db = getDb();
+  return db
+    .select()
+    .from(generationEvents)
+    .where(and(eq(generationEvents.jobId, jobId), gt(generationEvents.sequence, sequence)))
+    .orderBy(asc(generationEvents.sequence));
+}
+
+export async function claimQueuedGenerationJob(jobId: string) {
+  await ensureDatabase();
+  const db = getDb();
+  const [claimedJob] = await db
+    .update(generationJobs)
+    .set({
+      status: "running",
+      progress: 0,
+      error: null,
+      startedAt: new Date(),
+      completedAt: null,
+    })
+    .where(and(eq(generationJobs.id, jobId), eq(generationJobs.status, "queued")))
+    .returning({ id: generationJobs.id });
+
+  return Boolean(claimedJob);
 }
 
 export async function createAttachmentRecord(params: {

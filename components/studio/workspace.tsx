@@ -13,6 +13,7 @@ import {
   insertPlaceholderNodes,
   replacePlaceholderWithNodes,
   sanitizeDocumentContent,
+  updateGeneratedImageSource,
   updatePlaceholderPreview,
 } from "@/lib/schema/editor";
 import {
@@ -77,6 +78,10 @@ type StreamEvent =
   | {
       type: "block.completed";
       payload: { blockId: string; nodes: JSONContent[] };
+    }
+  | {
+      type: "block.asset_ready";
+      payload: { blockId: string; imageUrl: string };
     }
   | { type: "block.failed"; payload: { blockId: string; error: string } }
   | { type: "generation.completed"; payload: { versionId: string | null } }
@@ -287,6 +292,7 @@ export function Workspace({
   const previewCacheRef = useRef<
     Record<string, { preview: string; previewKind: "plain" | "rich_text" }>
   >({});
+  const generationBaseContentRef = useRef<JSONContent | null>(null);
   const [archiveItems, setArchiveItems] = useState(draftHistory);
   const [serverTitle, setServerTitle] = useState(document.title);
   const [title, setTitle] = useState(document.title);
@@ -374,16 +380,13 @@ export function Workspace({
     }
 
     const nextEditable = activeVersionId === latestVersionId;
-    const schedule =
-      typeof queueMicrotask === "function"
-        ? queueMicrotask
-        : (callback: () => void) => {
-            setTimeout(callback, 0);
-          };
-
-    schedule(() => {
+    const timeoutId = window.setTimeout(() => {
       editor.setEditable(nextEditable);
-    });
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [activeVersionId, latestVersionId, editor]);
 
   useEffect(() => {
@@ -540,6 +543,19 @@ export function Workspace({
     }
   }, [editor]);
 
+  const restoreCanvasAfterCancellation = useCallback(() => {
+    previewCacheRef.current = {};
+    setBlockStatus({});
+    setJobId(null);
+
+    const baseContent = generationBaseContentRef.current;
+    generationBaseContentRef.current = null;
+
+    if (baseContent) {
+      applyCanvasContent(baseContent, "the halted draft");
+    }
+  }, [applyCanvasContent]);
+
   function updatePlaceholderPreviewInEditor(
     blockId: string,
     preview: string,
@@ -635,6 +651,47 @@ export function Workspace({
     }
   }
 
+  function updateGeneratedImageInEditor(blockId: string, imageUrl: string) {
+    if (!editor) {
+      return false;
+    }
+
+    let targetPosition: number | null = null;
+    let targetAttrs: Record<string, unknown> | null = null;
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "generatedImage" && node.attrs.blockId === blockId) {
+        targetPosition = pos;
+        targetAttrs = node.attrs as Record<string, unknown>;
+        return false;
+      }
+
+      return true;
+    });
+
+    if (targetPosition === null || !targetAttrs) {
+      return false;
+    }
+
+    try {
+      const nextAttrs = targetAttrs as Record<string, unknown>;
+      const transaction = editor.state.tr
+        .setMeta("addToHistory", false)
+        .setNodeMarkup(targetPosition, undefined, {
+          ...nextAttrs,
+          src: imageUrl,
+        });
+
+      editor.view.dispatch(transaction);
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown editor error";
+      setVersionLoadError(`Unable to update generated image ${blockId}: ${message}`);
+      return false;
+    }
+  }
+
   function renderBusyButtonLabel(label: string) {
     return (
       <span className="inline-flex items-center gap-2">
@@ -692,11 +749,17 @@ export function Workspace({
       return;
     }
 
-    if (applyCanvasContent(document.currentContentJson, "the latest version")) {
-      setTimeout(() => {
-        resetDirtyStateToCurrentCanvas();
-      }, 0);
-    }
+    const timeoutId = window.setTimeout(() => {
+      if (applyCanvasContent(document.currentContentJson, "the latest version")) {
+        window.setTimeout(() => {
+          resetDirtyStateToCurrentCanvas();
+        }, 0);
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [
     applyCanvasContent,
     document.currentVersionId,
@@ -794,6 +857,7 @@ export function Workspace({
 
     setStartingGeneration(true);
     setVersionLoadError("");
+    generationBaseContentRef.current = cloneContent(editor.getJSON());
 
     try {
       const draft = getCurrentDraft();
@@ -828,6 +892,7 @@ export function Workspace({
         error instanceof Error ? error.message : "Unable to start generation.",
       );
       setOverallStatus("ready");
+      generationBaseContentRef.current = null;
     } finally {
       setStartingGeneration(false);
     }
@@ -845,11 +910,13 @@ export function Workspace({
       setSaveVersionError("");
       setBlockStatus({});
       setTitle(document.title);
-      if (applyCanvasContent(document.currentContentJson, "the latest version")) {
-        setTimeout(() => {
-          resetDirtyStateToCurrentCanvas();
-        }, 0);
-      }
+      window.setTimeout(() => {
+        if (applyCanvasContent(document.currentContentJson, "the latest version")) {
+          window.setTimeout(() => {
+            resetDirtyStateToCurrentCanvas();
+          }, 0);
+        }
+      }, 0);
       return;
     }
 
@@ -946,9 +1013,11 @@ export function Workspace({
         const previousPreview =
           previewCacheRef.current[parsed.payload.blockId]?.preview ?? "";
         const nextPreview =
-          parsed.payload.replace || typeof parsed.payload.preview === "string"
-            ? parsed.payload.preview ?? ""
-            : previousPreview + (parsed.payload.delta ?? "");
+          typeof parsed.payload.preview === "string"
+            ? parsed.payload.preview
+            : parsed.payload.replace
+              ? (parsed.payload.delta ?? "")
+              : previousPreview + (parsed.payload.delta ?? "");
         const nextPreviewKind = parsed.payload.previewKind ?? "plain";
 
         previewCacheRef.current[parsed.payload.blockId] = {
@@ -1013,7 +1082,36 @@ export function Workspace({
         delete previewCacheRef.current[parsed.payload.blockId];
       }
 
+      if (parsed.type === "block.asset_ready") {
+        if (
+          !updateGeneratedImageInEditor(
+            parsed.payload.blockId,
+            parsed.payload.imageUrl,
+          )
+        ) {
+          applyCanvasContent(
+            updateGeneratedImageSource(
+              editor.getJSON(),
+              parsed.payload.blockId,
+              parsed.payload.imageUrl,
+            ),
+            `generated image ${parsed.payload.blockId}`,
+          );
+        }
+      }
+
       if (parsed.type === "block.failed") {
+        if (parsed.payload.blockId === "__generation__") {
+          setVersionLoadError(parsed.payload.error);
+          setOverallStatus("failed");
+          previewCacheRef.current = {};
+          closeActiveStream();
+          return;
+        }
+
+        setVersionLoadError(
+          `Section ${parsed.payload.blockId} failed: ${parsed.payload.error}`,
+        );
         previewCacheRef.current[parsed.payload.blockId] = {
           preview: parsed.payload.error,
           previewKind: "plain",
@@ -1046,13 +1144,17 @@ export function Workspace({
         setActiveVersionId(latestVersionId);
         setActiveVersionNumber(latestVersionNumber);
         previewCacheRef.current = {};
+        generationBaseContentRef.current = null;
+        setJobId(null);
         closeActiveStream();
-        router.refresh();
+        if (parsed.payload.versionId) {
+          router.refresh();
+        }
       }
 
       if (parsed.type === "generation.cancelled") {
         setOverallStatus("cancelled");
-        previewCacheRef.current = {};
+        restoreCanvasAfterCancellation();
         closeActiveStream();
       }
     };
@@ -1071,6 +1173,7 @@ export function Workspace({
       });
 
       setOverallStatus("cancelled");
+      restoreCanvasAfterCancellation();
       closeActiveStream();
     } finally {
       setCancellingGeneration(false);
@@ -1685,7 +1788,7 @@ export function Workspace({
               </div>
             </div>
 
-            <div className="relative p-6 md:p-10 flex-1 overflow-y-auto prose-editor text-white/90 z-10">
+            <div className="relative flex-1 overflow-y-auto p-6 pb-24 md:p-10 md:pb-28 prose-editor text-white/90 z-10">
               {isViewingHistoricalVersion && activeVersionNumber !== null ? (
                 <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-[#111111] px-4 py-3 text-sm text-[var(--text-soft)]">
                   <p>
@@ -1705,12 +1808,14 @@ export function Workspace({
                         setVersionLoadError("");
                         setSaveVersionError("");
                         setBlockStatus({});
-                        applyCanvasContent(
-                          document.currentContentJson,
-                          "the latest version",
-                        );
-                        setTimeout(() => {
-                          resetDirtyStateToCurrentCanvas();
+                        window.setTimeout(() => {
+                          applyCanvasContent(
+                            document.currentContentJson,
+                            "the latest version",
+                          );
+                          window.setTimeout(() => {
+                            resetDirtyStateToCurrentCanvas();
+                          }, 0);
                         }, 0);
                       }}
                     >

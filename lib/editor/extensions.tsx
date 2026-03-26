@@ -94,7 +94,7 @@ function HeroSectionView({ node, selected }: BlockProps) {
     <BlockShell selected={selected}>
       <h2 className={titleClass}>{title}</h2>
       <p className={`mt-3 ${bodyClass}`}>{subtitle}</p>
-      <p className="mt-4 text-[0.98rem] font-medium leading-7 text-white">{actionLabel}</p>
+      <p className="mt-4 text-[0.98rem] font-semibold leading-7 text-white">{actionLabel}</p>
     </BlockShell>
   );
 }
@@ -129,8 +129,19 @@ function ImageWithCopyView({ node, selected }: BlockProps) {
   return (
     <BlockShell selected={selected}>
       <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
-        <div className="flex min-h-[180px] items-center justify-center rounded-[20px] border border-[var(--border)] bg-[var(--surface-2)] px-4 text-center text-sm text-[var(--text-soft)]">
-          {imageUrl || "Image placeholder"}
+        <div className="overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface-2)]">
+          {imageUrl ? (
+            <div
+              role="img"
+              aria-label={title}
+              className="min-h-[180px] bg-cover bg-center"
+              style={{ backgroundImage: `url(${imageUrl})` }}
+            />
+          ) : (
+            <div className="flex min-h-[180px] items-center justify-center px-4 text-center text-sm text-[var(--text-soft)]">
+              Image placeholder
+            </div>
+          )}
         </div>
         <div>
           <h3 className={titleClass}>{title}</h3>
@@ -138,6 +149,38 @@ function ImageWithCopyView({ node, selected }: BlockProps) {
         </div>
       </div>
     </BlockShell>
+  );
+}
+
+function GeneratedImageView({
+  node,
+  selected,
+}: Pick<BlockProps, "node" | "selected">) {
+  const src = ensureText(node.attrs.src);
+  const alt = ensureText(node.attrs.alt, "Generated image");
+
+  return (
+    <NodeViewWrapper className="my-5">
+      <div
+        className={clsx(
+          "overflow-hidden rounded-[18px] border border-[var(--border)] bg-[var(--surface-2)] transition",
+          selected ? "border-[rgba(66,230,164,0.45)]" : "",
+        )}
+      >
+        {src ? (
+          <div
+            role="img"
+            aria-label={alt}
+            className="min-h-[220px] w-full bg-cover bg-center"
+            style={{ backgroundImage: `url(${src})`, minHeight: 220, maxHeight: 420 }}
+          />
+        ) : (
+          <div className="flex min-h-[220px] items-center justify-center px-6 text-sm text-[var(--text-soft)]">
+            Image placeholder
+          </div>
+        )}
+      </div>
+    </NodeViewWrapper>
   );
 }
 
@@ -322,6 +365,30 @@ export const SectionHeader = Node.create({
   },
 });
 
+export const GeneratedImage = Node.create({
+  name: "generatedImage",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: false,
+  addAttributes() {
+    return {
+      blockId: { default: "" },
+      src: { default: "" },
+      alt: { default: "Generated image" },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "mivo-generated-image" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["mivo-generated-image", mergeAttributes(HTMLAttributes)];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(GeneratedImageView);
+  },
+});
+
 export const HeroSection = createBlockNode({
   name: "heroSection",
   tag: "mivo-hero-section",
@@ -452,6 +519,7 @@ export const editorExtensions = [
   Placeholder.configure({
     placeholder: "Start editing or generate a structured draft",
   }),
+  GeneratedImage,
   SectionHeader,
   HeroSection,
   TwoColumn,

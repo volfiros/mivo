@@ -3,6 +3,7 @@ import { DocumentPreview } from "@/components/editor/document-preview";
 import { getDocumentVersionContent } from "@/lib/records";
 import type { JSONContent } from "@tiptap/core";
 import { contentTypeSchema } from "@/lib/schema/content";
+import { sanitizeDocumentContent } from "@/lib/schema/editor";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function PreviewPage({
   const user = await requireUser(`/preview/${documentId}`);
   const document = await requireOwnedDocument(user.id, documentId);
   const contentType = contentTypeSchema.parse(document.contentType);
-  let content: JSONContent = document.currentContentJson;
+  let content: JSONContent = sanitizeDocumentContent(document.currentContentJson);
   let versionLabel: string | null = null;
 
   if (version) {
@@ -28,7 +29,7 @@ export default async function PreviewPage({
       versionId: version
     });
 
-    content = requestedVersion.content;
+    content = sanitizeDocumentContent(requestedVersion.content);
     versionLabel = `v${requestedVersion.versionNumber}`;
   }
 

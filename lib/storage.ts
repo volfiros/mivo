@@ -6,6 +6,7 @@ import pdfParse from "pdf-parse";
 import { nanoid } from "nanoid";
 
 const uploadDir = join(cwd(), "uploads");
+const generatedImageDir = join(cwd(), "public", "generated");
 
 export async function saveUpload(file: File) {
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -65,4 +66,22 @@ export async function readStoredFile(pathname: string) {
 
 export async function deleteStoredFile(pathname: string) {
   await rm(pathname, { force: true });
+}
+
+export async function saveGeneratedImage(
+  buffer: Buffer,
+  format: "png" | "jpeg" | "webp" = "webp",
+) {
+  const id = nanoid();
+  const filename = `${id}.${format === "jpeg" ? "jpg" : format}`;
+  const storagePath = join(generatedImageDir, filename);
+
+  await mkdir(generatedImageDir, { recursive: true });
+  await writeFile(storagePath, buffer);
+
+  return {
+    filename,
+    publicPath: `/generated/${filename}`,
+    storagePath,
+  };
 }

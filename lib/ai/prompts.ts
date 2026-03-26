@@ -33,6 +33,8 @@ export function buildBlockInstructions(contentType: ContentType, blockType: stri
   const blockSpecificGuidance =
     blockType === "cta_banner"
       ? "For cta_banner, always provide a concrete title, a complete body, and a clear actionLabel. Never leave title or body empty, whitespace-only, or placeholder-like."
+      : blockType === "image_with_copy"
+        ? "For image_with_copy, always provide a concrete title, a complete body, and a vivid imagePrompt describing the exact image to generate. Do not invent external image URLs."
       : "";
 
   return [

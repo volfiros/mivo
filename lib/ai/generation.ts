@@ -3,6 +3,7 @@ import type { ResponseStreamEvent } from "openai/resources/responses/responses";
 import { z } from "zod";
 import { config } from "@/lib/config";
 import { getOpenAI } from "@/lib/ai/client";
+import { saveGeneratedImage } from "@/lib/storage";
 import {
   blockToNodes,
   createEmptyDocument
@@ -22,6 +23,13 @@ import {
 } from "@/lib/schema/content";
 import { buildBlockInput, buildBlockInstructions, buildOutlineInput, buildOutlineInstructions, buildRewriteInstructions } from "@/lib/ai/prompts";
 
+const imageWithCopyGenerationSchema = z.object({
+  type: z.literal("image_with_copy"),
+  imagePrompt: z.string().trim().optional().default(""),
+  title: z.string().min(1),
+  body: z.string().min(1)
+});
+
 const blockSchemaMap = {
   rich_text: richTextBlockSchema,
   hero_section: heroSectionBlockSchema,
@@ -32,7 +40,7 @@ const blockSchemaMap = {
     rightTitle: z.string().min(1),
     rightBody: z.string().min(1)
   }),
-  image_with_copy: imageWithCopyBlockSchema,
+  image_with_copy: imageWithCopyGenerationSchema,
   callout: calloutBlockSchema,
   quote: quoteBlockSchema,
   cta_banner: ctaBannerBlockSchema,
@@ -231,6 +239,17 @@ export function blockDataToNodes(
   block: z.infer<(typeof blockSchemaMap)[keyof typeof blockSchemaMap]>,
   sectionLabel?: string,
 ) {
+  if (block.type === "image_with_copy") {
+    return blockToNodes(
+      imageWithCopyBlockSchema.parse({
+        ...block,
+        imageUrl: "",
+      }),
+      blockId,
+      sectionLabel,
+    );
+  }
+
   return blockToNodes(block, blockId, sectionLabel);
 }
 
@@ -289,6 +308,10 @@ function normalizeGeneratedBlock(
     case "image_with_copy":
       return imageWithCopyBlockSchema.parse({
         ...parsed,
+        imagePrompt: normalizeText(
+          "imagePrompt" in parsed ? parsed.imagePrompt : "",
+          extractStringValue(rawOutput, "imagePrompt")?.value
+        ),
         title: normalizeText(parsed.title, extractStringValue(rawOutput, "title")?.value),
         body: normalizeText(parsed.body, extractStringValue(rawOutput, "body")?.value)
       });
@@ -362,6 +385,7 @@ function buildGeneratedBlockFromRawOutput(
       return {
         type: "image_with_copy" as const,
         imageUrl: extractStringValue(rawOutput, "imageUrl")?.value ?? "",
+        imagePrompt: extractStringValue(rawOutput, "imagePrompt")?.value ?? "",
         title: extractStringValue(rawOutput, "title")?.value ?? "",
         body: extractStringValue(rawOutput, "body")?.value ?? ""
       };
@@ -418,6 +442,46 @@ function normalizeTextArray(primary: string[] | undefined, fallback: string[]) {
 
 function shouldUseComplexModel(contentType: ContentType, blockType: string) {
   return contentType === "landing_page" && ["hero_section", "feature_grid", "two_column"].includes(blockType);
+}
+
+export async function generateImageForBlock(params: {
+  contentType: ContentType;
+  title: string;
+  body: string;
+  imagePrompt?: string;
+}) {
+  const prompt = [
+    params.imagePrompt?.trim(),
+    params.title.trim(),
+    params.body.trim(),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  if (!prompt) {
+    return "";
+  }
+
+  try {
+    const client = getOpenAI();
+    const response = await client.images.generate({
+      model: config.imageModel,
+      prompt,
+      size: params.contentType === "landing_page" ? "1536x1024" : "1024x1024",
+      quality: "low",
+      output_format: "webp",
+    });
+    const imageData = response.data?.[0]?.b64_json;
+
+    if (!imageData) {
+      return "";
+    }
+
+    const saved = await saveGeneratedImage(Buffer.from(imageData, "base64"), "webp");
+    return saved.publicPath;
+  } catch {
+    return "";
+  }
 }
 
 export function fallbackDocument() {

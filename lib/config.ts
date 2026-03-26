@@ -4,6 +4,7 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_MODEL_DEFAULT: z.string().min(1).default("gpt-5-mini"),
   OPENAI_MODEL_COMPLEX: z.string().min(1).default("gpt-5.4"),
+  OPENAI_MODEL_IMAGE: z.string().min(1).default("gpt-image-1"),
   OPENAI_EMBEDDING_MODEL: z.string().min(1).default("text-embedding-3-small"),
   DATABASE_URL: z.string().min(1).optional(),
   BETTER_AUTH_SECRET: z.string().min(1).optional(),
@@ -36,6 +37,7 @@ export const config = {
   openAiApiKey: parsed.OPENAI_API_KEY ?? "",
   defaultModel: parsed.OPENAI_MODEL_DEFAULT,
   complexModel: parsed.OPENAI_MODEL_COMPLEX,
+  imageModel: parsed.OPENAI_MODEL_IMAGE,
   embeddingModel: parsed.OPENAI_EMBEDDING_MODEL,
   databaseUrl: parsed.DATABASE_URL
     ? normalizeDatabaseUrl(parsed.DATABASE_URL)
