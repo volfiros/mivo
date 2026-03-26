@@ -19,6 +19,7 @@ import {
   type StoredVersion,
   VERSION_CHECKPOINT_INTERVAL
 } from "@/lib/versioning";
+import type { ContentType } from "@/lib/schema/content";
 
 type DocumentVersionRecord = typeof documentVersions.$inferSelect;
 type AttachmentRecord = typeof attachments.$inferSelect;
@@ -158,7 +159,10 @@ export async function getOwnedDocument(userId: string, id: string): Promise<Owne
 
   return {
     ...document,
-    currentContentJson: sanitizeDocumentContent(document.currentContentJson as JSONContent),
+    currentContentJson: sanitizeDocumentContent(
+      document.currentContentJson as JSONContent,
+      document.contentType as ContentType,
+    ),
     versions,
     attachments: uploads
   };
@@ -249,8 +253,14 @@ export async function saveDocumentContent(params: {
   }
 
   const nextTitle = params.title ?? current.title;
-  const currentContent = sanitizeDocumentContent(current.currentContentJson);
-  const nextContent = sanitizeDocumentContent(params.content);
+  const currentContent = sanitizeDocumentContent(
+    current.currentContentJson,
+    current.contentType as ContentType,
+  );
+  const nextContent = sanitizeDocumentContent(
+    params.content,
+    current.contentType as ContentType,
+  );
 
   if (
     isSameDocumentState(
@@ -315,8 +325,14 @@ export async function saveDocumentDraft(params: {
   }
 
   const nextTitle = params.title ?? current.title;
-  const currentContent = sanitizeDocumentContent(current.currentContentJson);
-  const nextContent = sanitizeDocumentContent(params.content);
+  const currentContent = sanitizeDocumentContent(
+    current.currentContentJson,
+    current.contentType as ContentType,
+  );
+  const nextContent = sanitizeDocumentContent(
+    params.content,
+    current.contentType as ContentType,
+  );
 
   if (
     isSameDocumentState(
@@ -397,7 +413,10 @@ export async function getDocumentVersionContent(params: {
   if (hydratedVersion.storageMode === "snapshot" && hydratedVersion.fullSnapshotJson) {
     return {
       ...hydratedVersion,
-      content: sanitizeDocumentContent(hydratedVersion.fullSnapshotJson)
+      content: sanitizeDocumentContent(
+        hydratedVersion.fullSnapshotJson,
+        document.contentType as ContentType,
+      )
     };
   }
 
@@ -433,7 +452,7 @@ export async function getDocumentVersionContent(params: {
 
   return {
     ...hydratedVersion,
-    content: sanitizeDocumentContent(content)
+    content: sanitizeDocumentContent(content, document.contentType as ContentType)
   };
 }
 

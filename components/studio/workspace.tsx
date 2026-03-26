@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
 import type { AuthenticatedUserSummary } from "@/lib/auth-types";
-import { editorExtensions } from "@/lib/editor/extensions";
+import { buildEditorExtensions } from "@/lib/editor/extensions";
 import { AccountMenu } from "@/components/ui/account-menu";
 import {
   createEmptyDocument,
@@ -16,6 +16,7 @@ import {
   updateGeneratedImageSource,
   updatePlaceholderPreview,
 } from "@/lib/schema/editor";
+import type { ContentType } from "@/lib/schema/content";
 import {
   AppButton,
   AppScrollArea,
@@ -155,8 +156,8 @@ function canonicalizeSnapshotValue(value: unknown): unknown {
   return value;
 }
 
-function createContentSnapshotKey(content: JSONContent) {
-  const safeContent = sanitizeDocumentContent(cloneContent(content));
+function createContentSnapshotKey(content: JSONContent, contentType: ContentType) {
+  const safeContent = sanitizeDocumentContent(cloneContent(content), contentType);
   return JSON.stringify(canonicalizeSnapshotValue(safeContent));
 }
 
@@ -293,13 +294,14 @@ export function Workspace({
     Record<string, { preview: string; previewKind: "plain" | "rich_text" }>
   >({});
   const generationBaseContentRef = useRef<JSONContent | null>(null);
+  const contentType = document.contentType as ContentType;
   const [archiveItems, setArchiveItems] = useState(draftHistory);
   const [serverTitle, setServerTitle] = useState(document.title);
   const [title, setTitle] = useState(document.title);
   const [prompt, setPrompt] = useState("");
   const [rewritePrompt, setRewritePrompt] = useState("");
   const [savedContentSnapshotKey, setSavedContentSnapshotKey] = useState(() =>
-    createContentSnapshotKey(document.currentContentJson),
+    createContentSnapshotKey(document.currentContentJson, contentType),
   );
   const [isDirty, setIsDirty] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -347,13 +349,13 @@ export function Workspace({
 
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: editorExtensions,
-    content: sanitizeDocumentContent(document.currentContentJson),
+    extensions: buildEditorExtensions(contentType),
+    content: sanitizeDocumentContent(document.currentContentJson, contentType),
     enableContentCheck: true,
     onContentError: ({ error }) => {
       setVersionLoadError(`Unable to render the canvas: ${error.message}`);
     },
-  });
+  }, [contentType]);
 
   useEffect(() => {
     return () => {
@@ -396,6 +398,7 @@ export function Workspace({
         ?.versionNumber ?? null;
     const nextSavedContentSnapshotKey = createContentSnapshotKey(
       document.currentContentJson,
+      contentType,
     );
 
     setLatestVersionId(nextLatestVersionId);
@@ -410,6 +413,7 @@ export function Workspace({
       setVersionLoadError("");
     }
   }, [
+    contentType,
     document.currentVersionId,
     document.currentContentJson,
     document.versions,
@@ -424,7 +428,7 @@ export function Workspace({
 
     const updateDirtyState = () => {
       setIsDirty(
-        createContentSnapshotKey(editor.getJSON()) !== savedContentSnapshotKey,
+        createContentSnapshotKey(editor.getJSON(), contentType) !== savedContentSnapshotKey,
       );
     };
 
@@ -434,7 +438,7 @@ export function Workspace({
     return () => {
       editor.off("update", updateDirtyState);
     };
-  }, [editor, isViewingHistoricalVersion, savedContentSnapshotKey]);
+  }, [contentType, editor, isViewingHistoricalVersion, savedContentSnapshotKey]);
 
   useEffect(() => {
     if (!editor || isViewingHistoricalVersion) {
@@ -442,9 +446,9 @@ export function Workspace({
     }
 
     setIsDirty(
-      createContentSnapshotKey(editor.getJSON()) !== savedContentSnapshotKey,
+      createContentSnapshotKey(editor.getJSON(), contentType) !== savedContentSnapshotKey,
     );
-  }, [editor, isViewingHistoricalVersion, savedContentSnapshotKey]);
+  }, [contentType, editor, isViewingHistoricalVersion, savedContentSnapshotKey]);
 
   useEffect(() => {
     if (!editor) {
@@ -521,7 +525,7 @@ export function Workspace({
     }
 
     try {
-      const safeContent = sanitizeDocumentContent(cloneContent(nextContent));
+      const safeContent = sanitizeDocumentContent(cloneContent(nextContent), contentType);
 
       editor.commands.setContent(
         safeContent,
@@ -541,7 +545,7 @@ export function Workspace({
       editor.commands.setContent(createEmptyDocument(), false);
       return false;
     }
-  }, [editor]);
+  }, [contentType, editor]);
 
   const restoreCanvasAfterCancellation = useCallback(() => {
     previewCacheRef.current = {};
@@ -728,10 +732,10 @@ export function Workspace({
       return;
     }
 
-    const nextSnapshotKey = createContentSnapshotKey(editor.getJSON());
+    const nextSnapshotKey = createContentSnapshotKey(editor.getJSON(), contentType);
     setSavedContentSnapshotKey(nextSnapshotKey);
     setIsDirty(false);
-  }, [editor]);
+  }, [contentType, editor]);
 
   useEffect(() => {
     if (!editor || isViewingHistoricalVersion) {
@@ -797,7 +801,7 @@ export function Workspace({
 
     const draft = getCurrentDraft();
 
-    if (createContentSnapshotKey(draft.content) === savedContentSnapshotKey) {
+    if (createContentSnapshotKey(draft.content, contentType) === savedContentSnapshotKey) {
       return;
     }
 
@@ -997,6 +1001,7 @@ export function Workspace({
         const nextDoc = insertPlaceholderNodes(
           editor.getJSON(),
           parsed.payload.placeholders,
+          contentType,
         );
         setBlockStatus(
           Object.fromEntries(
@@ -1049,6 +1054,7 @@ export function Workspace({
               nextPreview,
               "streaming",
               nextPreviewKind,
+              contentType,
             ),
             `block preview ${parsed.payload.blockId}`,
           );
@@ -1075,6 +1081,7 @@ export function Workspace({
               editor.getJSON(),
               parsed.payload.blockId,
               hydratedNodes,
+              contentType,
             ),
             `block ${parsed.payload.blockId}`,
           );
@@ -1094,6 +1101,7 @@ export function Workspace({
               editor.getJSON(),
               parsed.payload.blockId,
               parsed.payload.imageUrl,
+              contentType,
             ),
             `generated image ${parsed.payload.blockId}`,
           );
@@ -1133,6 +1141,8 @@ export function Workspace({
               parsed.payload.blockId,
               parsed.payload.error,
               "failed",
+              undefined,
+              contentType,
             ),
             `failed block ${parsed.payload.blockId}`,
           );

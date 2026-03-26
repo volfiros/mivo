@@ -19,7 +19,10 @@ export default async function PreviewPage({
   const user = await requireUser(`/preview/${documentId}`);
   const document = await requireOwnedDocument(user.id, documentId);
   const contentType = contentTypeSchema.parse(document.contentType);
-  let content: JSONContent = sanitizeDocumentContent(document.currentContentJson);
+  let content: JSONContent = sanitizeDocumentContent(
+    document.currentContentJson,
+    contentType,
+  );
   let versionLabel: string | null = null;
 
   if (version) {
@@ -29,7 +32,7 @@ export default async function PreviewPage({
       versionId: version
     });
 
-    content = sanitizeDocumentContent(requestedVersion.content);
+    content = sanitizeDocumentContent(requestedVersion.content, contentType);
     versionLabel = `v${requestedVersion.versionNumber}`;
   }
 

@@ -238,6 +238,7 @@ export function blockDataToNodes(
   blockId: string,
   block: z.infer<(typeof blockSchemaMap)[keyof typeof blockSchemaMap]>,
   sectionLabel?: string,
+  contentType?: ContentType,
 ) {
   if (block.type === "image_with_copy") {
     return blockToNodes(
@@ -247,10 +248,11 @@ export function blockDataToNodes(
       }),
       blockId,
       sectionLabel,
+      contentType,
     );
   }
 
-  return blockToNodes(block, blockId, sectionLabel);
+  return blockToNodes(block, blockId, sectionLabel, contentType);
 }
 
 export function serializePreviewBlocks(blocks: Array<{ label: string; type: string }>) {

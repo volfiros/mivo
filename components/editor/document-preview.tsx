@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { Route } from "next";
 import type { JSONContent } from "@tiptap/core";
+import { clsx } from "clsx";
 import type { ContentType } from "@/lib/schema/content";
 import { AppButtonLink, AppNavLink } from "@/components/ui/primitives";
 
@@ -41,9 +42,9 @@ const previewVariants: Record<ContentType, Variant> = {
   landing_page: {
     canvas: "mx-auto max-w-6xl",
     body: "text-[1.02rem] leading-8 text-[var(--text)]",
-    h1: "text-5xl font-semibold tracking-tight text-white sm:text-6xl",
-    h2: "text-3xl font-semibold tracking-tight text-white sm:text-4xl",
-    h3: "text-2xl font-semibold tracking-tight text-white",
+    h1: "text-5xl font-semibold tracking-tight text-white sm:text-7xl",
+    h2: "text-[1.85rem] font-semibold tracking-tight text-white",
+    h3: "text-[1.2rem] font-semibold tracking-tight text-white",
     heroTitle: "max-w-4xl text-5xl font-semibold tracking-tight text-white sm:text-7xl",
     heroSubtitle: "max-w-2xl text-xl leading-8 text-[var(--text-soft)]",
     sectionSpacing: "mb-12"
@@ -59,6 +60,53 @@ const sectionLabelClass =
   "border-b border-[var(--border)] pb-2 text-[0.78rem] font-medium text-[var(--text-soft)]";
 const structuredTitleClass = "text-[1.15rem] font-semibold leading-7 text-white";
 const structuredBodyClass = "text-[0.98rem] leading-7 text-[var(--text-soft)]";
+
+function landingSectionPreviewClass(variant: string) {
+  switch (variant) {
+    case "hero":
+      return clsx(
+        "space-y-6 border-t border-[var(--border)] pt-8",
+        "[&>p:first-child]:max-w-[10rem] [&>p:first-child]:text-[0.82rem] [&>p:first-child]:font-medium [&>p:first-child]:uppercase [&>p:first-child]:tracking-[0.22em] [&>p:first-child]:text-[var(--text-soft)]",
+        "[&>h1]:max-w-4xl [&>h1]:text-5xl [&>h1]:font-semibold [&>h1]:leading-[1.02] [&>h1]:tracking-tight [&>h1]:text-white sm:[&>h1]:text-7xl",
+        "[&>p:nth-of-type(2)]:max-w-2xl [&>p:nth-of-type(2)]:text-[1.08rem] [&>p:nth-of-type(2)]:leading-8 [&>p:nth-of-type(2)]:text-[var(--text-soft)]",
+        "[&>p:last-child]:inline-flex [&>p:last-child]:w-fit [&>p:last-child]:border [&>p:last-child]:border-[rgba(66,230,164,0.28)] [&>p:last-child]:px-4 [&>p:last-child]:py-2 [&>p:last-child]:text-sm [&>p:last-child]:font-semibold [&>p:last-child]:tracking-[0.06em] [&>p:last-child]:text-white",
+      );
+    case "feature-grid":
+      return "grid gap-5 border-t border-[var(--border)] pt-8 md:grid-cols-2";
+    case "two-column":
+      return "grid gap-8 border-t border-[var(--border)] pt-8 md:grid-cols-2";
+    case "image-with-copy":
+      return "grid gap-8 border-t border-[var(--border)] pt-8 md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] md:items-center";
+    case "quote":
+      return clsx(
+        "space-y-4 border-t border-[var(--border)] pt-8",
+        "[&>blockquote]:border-l-2 [&>blockquote]:border-[var(--accent-strong)]/40 [&>blockquote]:pl-6 [&>blockquote>p]:text-[1.22rem] [&>blockquote>p]:leading-9 [&>blockquote>p]:text-white",
+        "[&>p]:text-[1rem] [&>p]:font-semibold [&>p]:tracking-tight [&>p]:text-[var(--text-soft)]",
+      );
+    case "cta":
+      return clsx(
+        "space-y-4 border-t border-[var(--border)] pt-8",
+        "[&>.landing-cta-shell]:space-y-4 [&>.landing-cta-shell]:border [&>.landing-cta-shell]:border-[rgba(66,230,164,0.18)] [&>.landing-cta-shell]:bg-[rgba(17,31,24,0.65)] [&>.landing-cta-shell]:px-6 [&>.landing-cta-shell]:py-6",
+        "[&>.landing-cta-shell>h2]:text-[1.8rem] [&>.landing-cta-shell>h2]:font-semibold [&>.landing-cta-shell>h2]:tracking-tight [&>.landing-cta-shell>h2]:text-white",
+        "[&>.landing-cta-shell>p:first-of-type]:max-w-3xl [&>.landing-cta-shell>p:first-of-type]:text-[1rem] [&>.landing-cta-shell>p:first-of-type]:leading-8 [&>.landing-cta-shell>p:first-of-type]:text-[var(--text-soft)]",
+        "[&>.landing-cta-shell>p:last-child]:text-[1rem] [&>.landing-cta-shell>p:last-child]:font-semibold [&>.landing-cta-shell>p:last-child]:text-white",
+      );
+    case "callout":
+      return clsx(
+        "border-t border-[var(--border)] pt-8",
+        "[&>.landing-callout-shell]:space-y-4 [&>.landing-callout-shell]:border-l-2 [&>.landing-callout-shell]:border-[var(--accent-strong)]/45 [&>.landing-callout-shell]:pl-6",
+        "[&>.landing-callout-shell>h3]:text-[1.25rem] [&>.landing-callout-shell>h3]:font-semibold [&>.landing-callout-shell>h3]:tracking-tight [&>.landing-callout-shell>h3]:text-white",
+        "[&>.landing-callout-shell>p]:text-[1rem] [&>.landing-callout-shell>p]:leading-8 [&>.landing-callout-shell>p]:text-[var(--text-soft)]",
+      );
+    default:
+      return clsx(
+        "space-y-4 border-t border-[var(--border)] pt-8",
+        "[&>h2]:text-[1.85rem] [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-white",
+        "[&>h3]:text-[1.2rem] [&>h3]:font-semibold [&>h3]:tracking-tight [&>h3]:text-white",
+        "[&>p]:text-[1rem] [&>p]:leading-8 [&>p]:text-[var(--text-soft)]",
+      );
+  }
+}
 
 function renderMark(
   type: string,
@@ -169,6 +217,45 @@ function RenderNode({ node, contentType }: RenderNodeProps) {
   }
 
   const variant = previewVariants[contentType];
+
+  if (node.type === "landingSection") {
+    const sectionLabel = ensureText(node.attrs?.label, "Section");
+    const sectionVariant = ensureText(node.attrs?.variant, "text");
+    const renderedChildren = renderChildren(node.content, contentType);
+
+    return (
+      <section className={variant.sectionSpacing}>
+        <div className="mb-5 text-[0.78rem] font-medium tracking-[0.18em] text-[var(--text-soft)]">
+          {sectionLabel}
+        </div>
+        {sectionVariant === "cta" ? (
+          <div className={landingSectionPreviewClass(sectionVariant)}>
+            <div className="landing-cta-shell">{renderedChildren}</div>
+          </div>
+        ) : sectionVariant === "callout" ? (
+          <div className={landingSectionPreviewClass(sectionVariant)}>
+            <div className="landing-callout-shell">{renderedChildren}</div>
+          </div>
+        ) : (
+          <div className={landingSectionPreviewClass(sectionVariant)}>
+            {renderedChildren}
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  if (node.type === "landingColumn") {
+    return <div className="min-w-0">{renderChildren(node.content, contentType)}</div>;
+  }
+
+  if (node.type === "landingFeatureCard") {
+    return (
+      <div className="border border-[var(--border)] bg-[rgba(15,15,15,0.82)] px-5 py-5">
+        {renderChildren(node.content, contentType)}
+      </div>
+    );
+  }
 
   if (node.type === "paragraph") {
     return <p className={`mb-4 ${variant.body}`}>{renderChildren(node.content, contentType)}</p>;

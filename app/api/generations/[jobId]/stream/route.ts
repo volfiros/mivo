@@ -352,7 +352,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
         })) as Outline;
 
         const baseContent = sanitizeDocumentContent(
-          requestPayload.draftContent ?? (document.currentContentJson as JSONContent)
+          requestPayload.draftContent ?? (document.currentContentJson as JSONContent),
+          contentType,
         );
         const baseTitle = requestPayload.title?.trim() || document.title;
 
@@ -365,7 +366,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
           label: block.label
         }));
         let priorBlocks = "";
-        let currentJson = insertPlaceholderNodes(baseContent, placeholders);
+        let currentJson = insertPlaceholderNodes(baseContent, placeholders, contentType);
         const imageGenerationTasks: Array<Promise<void>> = [];
 
         await send({
@@ -453,10 +454,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
                   block.goal,
                 ) as never,
                 block.label,
+                contentType,
               ),
               preview
             );
-            currentJson = replacePlaceholderWithNodes(currentJson, block.blockId, nodes);
+            currentJson = replacePlaceholderWithNodes(
+              currentJson,
+              block.blockId,
+              nodes,
+              contentType,
+            );
             priorBlocks = [priorBlocks, `${block.type}: ${block.label}`].filter(Boolean).join("\n");
 
             await send({
@@ -491,6 +498,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
                     currentJson,
                     block.blockId,
                     imageUrl,
+                    contentType,
                   );
 
                   await send({
@@ -511,6 +519,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
               block.blockId,
               message,
               "failed",
+              undefined,
+              contentType,
             );
 
             await send({
