@@ -9,7 +9,7 @@ node_modules
 coverage
 dist
 tmp
-uploads
+/uploads/
 playwright-report
 test-results
 *.log
