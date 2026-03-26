@@ -1627,7 +1627,7 @@ export function Workspace({
                             </p>
                             <StatusBadge
                               status="ready"
-                              label="grounded"
+                              label="indexed"
                               className="shrink-0 px-1.5 py-0.5 text-[9px] shadow-sm"
                             />
                           </div>
@@ -1648,7 +1648,7 @@ export function Workspace({
               ) : (
                 <div className="p-4 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/50 text-center">
                   <p className="text-xs text-[var(--text-muted)]">
-                    No context files grounded yet.
+                    No indexed files yet.
                   </p>
                 </div>
               )}
@@ -1966,8 +1966,8 @@ export function Workspace({
                   className="text-xs cursor-pointer"
                 >
                   {busyUpload
-                    ? renderBusyButtonLabel("Grounding...")
-                    : "Grounding File"}
+                    ? renderBusyButtonLabel("Uploading...")
+                    : "Upload File"}
                 </AppButton>
                 <input
                   ref={fileInputRef}
