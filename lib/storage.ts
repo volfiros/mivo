@@ -1,3 +1,4 @@
+import { basename } from "path";
 import { readFile, rm } from "fs/promises";
 import mammoth from "mammoth";
 import pdfParse from "pdf-parse";
@@ -10,24 +11,31 @@ import {
 
 export async function saveUpload(file: File) {
   const buffer = Buffer.from(await file.arrayBuffer());
+  const mimeType = normalizeUploadMimeType(file);
   const storedAsset = await createStoredAsset({
     kind: "upload",
-    mimeType: file.type || "application/octet-stream",
+    mimeType,
     filename: file.name,
     buffer
   });
 
-  const extractedText = await extractText(file.type, buffer);
+  const extractedText = await extractText(mimeType, file.name, buffer);
 
   return {
     id: storedAsset.id,
+    mimeType,
     storagePath: storedAsset.storagePath,
     extractedText
   };
 }
 
-async function extractText(mimeType: string, buffer: Buffer) {
-  if (mimeType === "text/plain") {
+async function extractText(mimeType: string, _filename: string, buffer: Buffer) {
+  if (
+    mimeType === "text/plain" ||
+    mimeType === "text/markdown" ||
+    mimeType === "text/x-markdown" ||
+    mimeType === "application/markdown"
+  ) {
     return buffer.toString("utf8");
   }
 
@@ -42,6 +50,34 @@ async function extractText(mimeType: string, buffer: Buffer) {
   }
 
   return buffer.toString("utf8");
+}
+
+function normalizeUploadMimeType(file: File) {
+  const explicitMimeType = file.type.trim().toLowerCase();
+
+  if (explicitMimeType) {
+    return explicitMimeType;
+  }
+
+  const filename = basename(file.name).toLowerCase();
+
+  if (filename.endsWith(".md") || filename.endsWith(".markdown")) {
+    return "text/markdown";
+  }
+
+  if (filename.endsWith(".txt")) {
+    return "text/plain";
+  }
+
+  if (filename.endsWith(".pdf")) {
+    return "application/pdf";
+  }
+
+  if (filename.endsWith(".docx")) {
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+
+  return "application/octet-stream";
 }
 
 export function chunkText(text: string, chunkSize = 1200) {

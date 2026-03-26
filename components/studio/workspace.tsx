@@ -1269,6 +1269,7 @@ export function Workspace({
     }
 
     setBusyUpload(true);
+    setVersionLoadError("");
 
     try {
       const formData = new FormData();
@@ -1280,9 +1281,33 @@ export function Workspace({
         body: formData,
       });
 
-      const payload = await response.json();
-      setAttachmentIds((current) => [...current, payload.attachmentId]);
+      const responseText = await response.text();
+      const contentTypeHeader = response.headers.get("content-type") ?? "";
+
+      if (!contentTypeHeader.includes("application/json")) {
+        throw new Error(
+          response.ok
+            ? "Upload returned an unexpected response."
+            : `Upload failed (${response.status}).`,
+        );
+      }
+
+      const payload = JSON.parse(responseText) as {
+        attachmentId?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.attachmentId) {
+        throw new Error(payload.error ?? "Upload failed");
+      }
+
+      const attachmentId = payload.attachmentId;
+      setAttachmentIds((current) => [...current, attachmentId]);
       router.refresh();
+    } catch (error) {
+      setVersionLoadError(
+        error instanceof Error ? error.message : "Unable to upload attachment.",
+      );
     } finally {
       setBusyUpload(false);
       event.target.value = "";
