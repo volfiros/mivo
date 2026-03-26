@@ -386,9 +386,19 @@ label {
 
 .no-scrollbar {
     scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.no-scrollbar [data-radix-scroll-area-viewport] {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
 .no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar [data-radix-scroll-area-viewport]::-webkit-scrollbar {
     display: none;
 }
 
