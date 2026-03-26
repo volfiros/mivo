@@ -13,6 +13,19 @@ const envSchema = z.object({
 
 const parsed = envSchema.parse(process.env);
 
+function toOrigin(value: string) {
+  try {
+    const url = new URL(value);
+    return url.origin;
+  } catch {
+    try {
+      return new URL(`https://${value}`).origin;
+    } catch {
+      return null;
+    }
+  }
+}
+
 function getBetterAuthUrl() {
   if (parsed.BETTER_AUTH_URL) {
     return parsed.BETTER_AUTH_URL;
@@ -21,13 +34,36 @@ function getBetterAuthUrl() {
   const isProduction = process.env.VERCEL_ENV === "production";
   const vercelHost = isProduction
     ? process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL
-    : process.env.VERCEL_BRANCH_URL ?? process.env.VERCEL_URL;
+    : process.env.VERCEL_URL ?? process.env.VERCEL_BRANCH_URL;
 
   if (vercelHost) {
     return `https://${vercelHost}`;
   }
 
   return "http://localhost:3000";
+}
+
+export function getBetterAuthTrustedOrigins() {
+  const origins = new Set<string>(["http://localhost:3000"]);
+
+  for (const value of [
+    parsed.BETTER_AUTH_URL,
+    process.env.VERCEL_URL,
+    process.env.VERCEL_BRANCH_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  ]) {
+    if (!value) {
+      continue;
+    }
+
+    const origin = toOrigin(value);
+
+    if (origin) {
+      origins.add(origin);
+    }
+  }
+
+  return Array.from(origins);
 }
 
 export function normalizeDatabaseUrl(databaseUrl: string) {
