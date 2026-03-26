@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import type { JSONContent } from "@tiptap/core";
 import { applyPatch } from "fast-json-patch";
 import type { Operation } from "fast-json-patch";
+import { cosineSimilarity, embedSingleText } from "@/lib/ai/embeddings";
 import { ensureDatabase, getDb } from "@/lib/db";
 import { deleteStoredFile } from "@/lib/storage";
 import {
@@ -588,7 +589,10 @@ export async function createAttachmentRecord(params: {
   mimeType: string;
   storagePath: string;
   extractedText: string;
-  chunks: string[];
+  chunks: Array<{
+    content: string;
+    embedding: number[] | null;
+  }>;
 }) {
   await ensureDatabase();
   const db = getDb();
@@ -611,13 +615,13 @@ export async function createAttachmentRecord(params: {
 
   if (params.chunks.length) {
     await db.insert(documentContextChunks).values(
-      params.chunks.map((content, index) => ({
+      params.chunks.map((chunk, index) => ({
         id: nanoid(),
         documentId: params.documentId,
         attachmentId,
         chunkIndex: index,
-        content,
-        embedding: null,
+        content: chunk.content,
+        embedding: chunk.embedding,
         createdAt: new Date()
       }))
     );
@@ -629,6 +633,7 @@ export async function createAttachmentRecord(params: {
 export async function getAttachmentContext(params: {
   userId: string;
   documentId: string;
+  retrievalQuery: string;
   attachmentIds?: string[];
 }) {
   await ensureDatabase();
@@ -651,10 +656,102 @@ export async function getAttachmentContext(params: {
     .select()
     .from(documentContextChunks)
     .where(and(...filters))
-    .orderBy(asc(documentContextChunks.chunkIndex))
-    .limit(8);
+    .orderBy(asc(documentContextChunks.chunkIndex));
 
-  return chunks.map((chunk) => chunk.content).join("\n\n");
+  const fallbackContext = serializeRetrievedChunks(chunks);
+  const normalizedQuery = params.retrievalQuery.trim();
+
+  if (!normalizedQuery || !chunks.length) {
+    return fallbackContext;
+  }
+
+  let queryEmbedding: number[] | null = null;
+
+  try {
+    queryEmbedding = await embedSingleText(normalizedQuery);
+  } catch {
+    return fallbackContext;
+  }
+
+  if (!queryEmbedding) {
+    return fallbackContext;
+  }
+
+  const embeddedChunks = chunks
+    .map((chunk) => ({
+      ...chunk,
+      parsedEmbedding: parseEmbeddingValue(chunk.embedding),
+    }))
+    .filter((chunk): chunk is typeof chunk & { parsedEmbedding: number[] } =>
+      Array.isArray(chunk.parsedEmbedding),
+    );
+
+  if (!embeddedChunks.length) {
+    return fallbackContext;
+  }
+
+  const rankedChunks = embeddedChunks
+    .map((chunk) => ({
+      ...chunk,
+      score: cosineSimilarity(queryEmbedding as number[], chunk.parsedEmbedding),
+    }))
+    .filter((chunk) => Number.isFinite(chunk.score))
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+
+      if (left.attachmentId !== right.attachmentId) {
+        return left.attachmentId.localeCompare(right.attachmentId);
+      }
+
+      return left.chunkIndex - right.chunkIndex;
+    });
+
+  if (!rankedChunks.length) {
+    return fallbackContext;
+  }
+
+  return serializeRetrievedChunks(rankedChunks);
+}
+
+const ATTACHMENT_CONTEXT_TOP_K = 8;
+const ATTACHMENT_CONTEXT_MAX_CHARS = 9000;
+
+function parseEmbeddingValue(value: unknown) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const normalized = value.filter((item): item is number => typeof item === "number");
+  return normalized.length === value.length ? normalized : null;
+}
+
+function serializeRetrievedChunks(
+  chunks: Array<{ content: string }>,
+) {
+  const selectedChunks: string[] = [];
+  let currentLength = 0;
+
+  for (const chunk of chunks.slice(0, ATTACHMENT_CONTEXT_TOP_K)) {
+    const nextContent = chunk.content.trim();
+
+    if (!nextContent) {
+      continue;
+    }
+
+    const nextLength =
+      currentLength + nextContent.length + (selectedChunks.length ? 2 : 0);
+
+    if (selectedChunks.length && nextLength > ATTACHMENT_CONTEXT_MAX_CHARS) {
+      break;
+    }
+
+    selectedChunks.push(nextContent);
+    currentLength = nextLength;
+  }
+
+  return selectedChunks.join("\n\n");
 }
 
 export async function saveDocumentTitle(params: {

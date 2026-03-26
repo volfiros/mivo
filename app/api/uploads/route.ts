@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { embedTexts } from "@/lib/ai/embeddings";
 import { createRouteErrorResponse } from "@/lib/api-error";
 import { requireRequestUser } from "@/lib/auth-helpers";
 import { chunkText, saveUpload } from "@/lib/storage";
@@ -25,6 +26,17 @@ export async function POST(request: Request) {
   try {
     const saved = await saveUpload(file);
     const chunks = chunkText(saved.extractedText);
+    let chunkEmbeddings: Array<number[] | null> = chunks.map(() => null);
+
+    if (chunks.length) {
+      try {
+        const embeddings = await embedTexts(chunks);
+        chunkEmbeddings = chunks.map((_, index) => embeddings[index] ?? null);
+      } catch {
+        chunkEmbeddings = chunks.map(() => null);
+      }
+    }
+
     const attachmentId = await createAttachmentRecord({
       userId: authState.user.id,
       documentId,
@@ -32,7 +44,10 @@ export async function POST(request: Request) {
       mimeType: saved.mimeType,
       storagePath: saved.storagePath,
       extractedText: saved.extractedText,
-      chunks
+      chunks: chunks.map((content, index) => ({
+        content,
+        embedding: chunkEmbeddings[index] ?? null,
+      }))
     });
 
     return NextResponse.json({ attachmentId });

@@ -14,7 +14,7 @@ Build an AI-powered content editor that can generate structured marketing conten
 - Clear separation between UI, persistence, and AI orchestration
 - Streaming / progressive rendering
 - Landing-page support
-- File-based grounding
+- Attachment grounding with semantic retrieval
 - Version history and preview flow
 
 ### Current gaps
@@ -135,8 +135,9 @@ Uploaded files are:
 1. stored in database-backed asset storage
 2. text-extracted
 3. chunked into `document_context_chunks`
+4. embedded with the configured OpenAI embedding model
 
-This is intentionally simple and fast to operate in the current product shape.
+During draft generation, the app embeds the synthesis query, scores the stored chunk embeddings in application code, and injects the top relevant chunks into outline/block generation prompts.
 
 ## Why The Architecture Is Reasonable
 
@@ -169,9 +170,9 @@ To swap LLM providers, the main blast radius is the AI client and generation hel
   - Better UI progress semantics.
 - SSE over WebSockets
   - Lower complexity for server-to-client updates only.
-- File chunk grounding over embeddings-based retrieval
-  - Faster to ship.
-  - Good enough for a first production-minded version.
+- Chunk storage plus application-side semantic retrieval
+  - Avoids introducing pgvector in v1.
+  - Keeps retrieval quality meaningfully better than ordered chunk prefix sampling.
 - Explicit version creation
   - Keeps generation separate from persistence.
   - Avoids auto-saving intermediate states by default.
@@ -179,7 +180,7 @@ To swap LLM providers, the main blast radius is the AI client and generation hel
 ### Costs of those choices
 
 - Cross-block coherence is weaker than a single holistic final pass.
-- Grounding quality is limited when uploaded context is large.
+- Retrieval quality is bounded by application-side ranking and prompt-budget caps rather than database-native vector search.
 - Generated drafts are live in the editor before they are formally persisted.
 
 ## Most Important Gaps
@@ -188,18 +189,18 @@ To swap LLM providers, the main blast radius is the AI client and generation hel
 
 The current micro-revision flow captures only selected text, not the selection range. A robust implementation would store the selection anchor/head or a stable block/range identifier and replace that exact span when the rewrite returns.
 
-### 2. Grounding should become retrieval-based
-
-The schema already anticipates embeddings, but retrieval currently returns the first matching chunks in order. A better implementation would embed chunks, embed the prompt, and retrieve top-k relevant context.
-
-### 3. Generation persistence could be more explicit
+### 2. Generation persistence could be more explicit
 
 Today generation completes in the editor first, and the user creates a version afterward. With more time, I would support an option to auto-save the generated result as an AI-created version, while still preserving manual control.
+
+### 3. Retrieval can be pushed deeper into the stack
+
+Semantic retrieval now runs in application code. With more time, I would move chunk similarity search into database-native vector search or reranking so retrieval stays efficient as attachment volume grows.
 
 ## What I Would Improve Next
 
 1. Fix range-safe selection rewriting.
-2. Add embedding-based retrieval for attachments.
-3. Persist successful generation directly into a new AI version.
-4. Add automated tests for document transforms, version hydration, and streaming event sequencing.
+2. Persist successful generation directly into a new AI version.
+3. Add pgvector or reranking support for higher-scale retrieval.
+4. Add automated tests for document transforms, version hydration, streaming event sequencing, and retrieval scoring.
 5. Add richer publish-surface fidelity for landing pages and blog layouts.

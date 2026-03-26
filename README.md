@@ -8,7 +8,7 @@ Mivo is an AI-powered content editor for structured marketing content. It uses T
 - AI generation for `social_post`, `blog_post`, and `landing_page`.
 - Structured output designed for renderable editorial and layout blocks, not plain text dumps.
 - Progressive rendering via server-sent events, outline placeholders, per-block previews, and block completion events.
-- Grounding file uploads for text, PDF, and DOCX.
+- Attachment uploads for text, Markdown, PDF, and DOCX with semantic retrieval for generation grounding.
 - Dedicated preview flow backed by the same document schema.
 - Selection-based micro-revision workflow.
 - Version history with checkpointed storage and historical preview.
@@ -18,7 +18,7 @@ Mivo is an AI-powered content editor for structured marketing content. It uses T
 - Create a draft for a social post, blog post, or landing page.
 - Generate structured content into the editor from a prompt.
 - Stream generation progressively instead of waiting for the full document.
-- Upload grounding files and use their extracted text as generation context.
+- Upload attachments, chunk and embed them, and use semantically retrieved context during draft generation.
 - Preview the current draft or a historical version.
 - Save point-in-time versions with checkpointed storage.
 - Highlight text and request a targeted rewrite.
@@ -91,8 +91,8 @@ pnpm db:generate
 
 ## Data and Storage Notes
 
-- Uploaded grounding files and generated images are stored in Postgres-backed asset storage.
-- Documents, version metadata, attachment metadata, and grounding chunks live in Postgres.
+- Uploaded attachment files and generated images are stored in Postgres-backed asset storage.
+- Documents, version metadata, attachment metadata, chunk text, and chunk embeddings live in Postgres.
 - Version history uses periodic checkpoints plus JSON patches for later versions.
 
 ## Project Structure
@@ -110,7 +110,7 @@ drizzle/                SQL migrations and snapshots
 ## Known Gaps / Honest Notes
 
 - Micro-revision currently tracks the selected text, but not a stable editor range. If focus changes before the rewrite returns, replacement can target the wrong location.
-- Grounding retrieval is chunk-based and ordered, not semantic retrieval over embeddings yet.
+- Semantic retrieval is currently used for draft generation only; rewrite and mutation flows still ignore attachment retrieval.
 - AI generation updates the live canvas immediately, but the user still has to create a version to persist the generated draft explicitly.
 
 ## Verification

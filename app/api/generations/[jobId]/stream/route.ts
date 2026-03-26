@@ -12,6 +12,7 @@ import {
 } from "@/lib/records";
 import {
   blockDataToNodes,
+  buildAttachmentRetrievalQuery,
   buildStreamingPreview,
   createInitialDocumentTitle,
   generateImageForBlock,
@@ -340,10 +341,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
         }
 
         const contentType = sanitizeContentType(requestPayload.contentType);
+        const retrievalQuery = buildAttachmentRetrievalQuery({
+          contentType,
+          prompt: requestPayload.prompt,
+          title: requestPayload.title?.trim() || document.title,
+        });
         const attachmentContext = await getAttachmentContext({
           userId: authState.user.id,
           documentId: requestPayload.documentId,
-          attachmentIds: requestPayload.attachmentIds ?? []
+          attachmentIds: requestPayload.attachmentIds ?? [],
+          retrievalQuery,
         });
         const outline = (await generateOutline({
           contentType,

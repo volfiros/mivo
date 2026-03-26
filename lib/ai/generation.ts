@@ -273,6 +273,20 @@ export function createInitialDocumentTitle(prompt: string, contentType: ContentT
   return compact;
 }
 
+export function buildAttachmentRetrievalQuery(params: {
+  contentType: ContentType;
+  prompt: string;
+  title?: string;
+}) {
+  return [
+    `Content type: ${params.contentType.replace(/_/g, " ")}`,
+    params.title?.trim() ? `Document title: ${params.title.trim()}` : "",
+    `User prompt: ${params.prompt.trim()}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function normalizeGeneratedBlock(
   _blockType: keyof typeof blockSchemaMap,
   parsed: z.infer<(typeof blockSchemaMap)[keyof typeof blockSchemaMap]>,
