@@ -13,6 +13,23 @@ const envSchema = z.object({
 
 const parsed = envSchema.parse(process.env);
 
+function getBetterAuthUrl() {
+  if (parsed.BETTER_AUTH_URL) {
+    return parsed.BETTER_AUTH_URL;
+  }
+
+  const isProduction = process.env.VERCEL_ENV === "production";
+  const vercelHost = isProduction
+    ? process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL
+    : process.env.VERCEL_BRANCH_URL ?? process.env.VERCEL_URL;
+
+  if (vercelHost) {
+    return `https://${vercelHost}`;
+  }
+
+  return "http://localhost:3000";
+}
+
 export function normalizeDatabaseUrl(databaseUrl: string) {
   try {
     const value = new URL(databaseUrl);
@@ -45,7 +62,7 @@ export const config = {
   betterAuthSecret:
     parsed.BETTER_AUTH_SECRET ??
     "development-only-better-auth-secret-change-me-1234567890",
-  betterAuthUrl: parsed.BETTER_AUTH_URL ?? "http://localhost:3000"
+  betterAuthUrl: getBetterAuthUrl()
 };
 
 export function assertServerConfig() {
