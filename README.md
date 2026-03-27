@@ -2,6 +2,10 @@
 
 Mivo is an AI-powered content editor for structured marketing content. It uses TipTap for rich editing, OpenAI for outline and block generation, and a Next.js + Postgres backend for document persistence, uploads, and version history.
 
+## Demo
+
+Watch the demo video: [Getting Started with Mivo AI](https://www.tella.tv/video/getting-started-with-mivo-ai-ev36)
+
 ## Product Overview
 
 - TipTap-based editor with custom block nodes and React node views.
