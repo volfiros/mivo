@@ -1,18 +1,13 @@
 import OpenAI from "openai";
-import { config } from "@/lib/config";
 
-let client: OpenAI | null = null;
+export function getOpenAI(apiKey: string) {
+  const normalizedKey = apiKey.trim();
 
-export function getOpenAI() {
-  if (!config.openAiApiKey) {
-    throw new Error("OPENAI_API_KEY is missing");
+  if (!normalizedKey) {
+    throw new Error("Add your OpenAI key to continue.");
   }
 
-  if (!client) {
-    client = new OpenAI({
-      apiKey: config.openAiApiKey
-    });
-  }
-
-  return client;
+  return new OpenAI({
+    apiKey: normalizedKey,
+  });
 }

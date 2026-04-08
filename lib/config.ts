@@ -1,14 +1,14 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_MODEL_DEFAULT: z.string().min(1).default("gpt-5-mini"),
   OPENAI_MODEL_COMPLEX: z.string().min(1).default("gpt-5.4"),
   OPENAI_MODEL_IMAGE: z.string().min(1).default("gpt-image-1"),
   OPENAI_EMBEDDING_MODEL: z.string().min(1).default("text-embedding-3-small"),
   DATABASE_URL: z.string().min(1).optional(),
   BETTER_AUTH_SECRET: z.string().min(1).optional(),
-  BETTER_AUTH_URL: z.string().url().optional()
+  BETTER_AUTH_URL: z.string().url().optional(),
+  USER_OPENAI_KEY_ENCRYPTION_SECRET: z.string().min(1).optional()
 });
 
 const parsed = envSchema.parse(process.env);
@@ -87,7 +87,6 @@ export function normalizeDatabaseUrl(databaseUrl: string) {
 }
 
 export const config = {
-  openAiApiKey: parsed.OPENAI_API_KEY ?? "",
   defaultModel: parsed.OPENAI_MODEL_DEFAULT,
   complexModel: parsed.OPENAI_MODEL_COMPLEX,
   imageModel: parsed.OPENAI_MODEL_IMAGE,
@@ -98,14 +97,14 @@ export const config = {
   betterAuthSecret:
     parsed.BETTER_AUTH_SECRET ??
     "development-only-better-auth-secret-change-me-1234567890",
-  betterAuthUrl: getBetterAuthUrl()
+  betterAuthUrl: getBetterAuthUrl(),
+  userOpenAiKeyEncryptionSecret:
+    parsed.USER_OPENAI_KEY_ENCRYPTION_SECRET ??
+    parsed.BETTER_AUTH_SECRET ??
+    "development-only-openai-key-encryption-secret-change-me"
 };
 
 export function assertServerConfig() {
-  if (!config.openAiApiKey) {
-    throw new Error("OPENAI_API_KEY is missing");
-  }
-
   if (!config.databaseUrl) {
     throw new Error("DATABASE_URL is missing");
   }

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
+import { getOpenAI } from "@/lib/ai/client";
 import { createRouteErrorResponse } from "@/lib/api-error";
-import { requireRequestUser } from "@/lib/auth-helpers";
+import { requireRequestUserOpenAiKey } from "@/lib/auth-helpers";
 import { rewriteRequestSchema } from "@/lib/schema/content";
 import { getOwnedDocument } from "@/lib/records";
 import { rewriteSelection } from "@/lib/ai/generation";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const authState = await requireRequestUser(request);
+    const authState = await requireRequestUserOpenAiKey(request);
 
     if (authState.response) {
       return authState.response;
@@ -22,6 +23,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const replacement = await rewriteSelection({
+      client: getOpenAI(authState.apiKey),
       selectionText: body.selectionText,
       instruction: body.instruction,
       documentTitle: document.title

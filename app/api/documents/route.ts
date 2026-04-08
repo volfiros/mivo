@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createRouteErrorResponse } from "@/lib/api-error";
-import { requireRequestUser } from "@/lib/auth-helpers";
+import { requireRequestUserOpenAiKey } from "@/lib/auth-helpers";
 import { createDocument } from "@/lib/records";
 
 const requestSchema = z.object({
@@ -11,7 +11,7 @@ const requestSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const authState = await requireRequestUser(request);
+    const authState = await requireRequestUserOpenAiKey(request);
 
     if (authState.response) {
       return authState.response;

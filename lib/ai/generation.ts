@@ -1,8 +1,8 @@
 import { zodTextFormat } from "openai/helpers/zod";
+import type OpenAI from "openai";
 import type { ResponseStreamEvent } from "openai/resources/responses/responses";
 import { z } from "zod";
 import { config } from "@/lib/config";
-import { getOpenAI } from "@/lib/ai/client";
 import { saveGeneratedImage } from "@/lib/storage";
 import {
   blockToNodes,
@@ -48,12 +48,12 @@ const blockSchemaMap = {
 } as const;
 
 export async function generateOutline(params: {
+  client: OpenAI;
   contentType: ContentType;
   prompt: string;
   context: string;
 }) {
-  const client = getOpenAI();
-  const response = await client.responses.parse({
+  const response = await params.client.responses.parse({
     model: config.defaultModel,
     instructions: buildOutlineInstructions(params.contentType),
     input: buildOutlineInput(params),
@@ -66,6 +66,7 @@ export async function generateOutline(params: {
 }
 
 export async function streamBlock(params: {
+  client: OpenAI;
   contentType: ContentType;
   blockType: keyof typeof blockSchemaMap;
   prompt: string;
@@ -76,9 +77,8 @@ export async function streamBlock(params: {
   onEvent?: (event: ResponseStreamEvent) => Promise<void> | void;
   onDelta?: (delta: string) => Promise<void> | void;
 }) {
-  const client = getOpenAI();
   const schema = blockSchemaMap[params.blockType];
-  const stream = client.responses.stream({
+  const stream = params.client.responses.stream({
     model: shouldUseComplexModel(params.contentType, params.blockType) ? config.complexModel : config.defaultModel,
     instructions: buildBlockInstructions(params.contentType, params.blockType),
     input: buildBlockInput(params),
@@ -208,12 +208,12 @@ export function buildStreamingPreview(blockType: keyof typeof blockSchemaMap, so
 }
 
 export async function rewriteSelection(params: {
+  client: OpenAI;
   selectionText: string;
   instruction: string;
   documentTitle: string;
 }) {
-  const client = getOpenAI();
-  const response = await client.responses.parse({
+  const response = await params.client.responses.parse({
     model: config.defaultModel,
     instructions: buildRewriteInstructions(),
     input: [
@@ -461,6 +461,7 @@ function shouldUseComplexModel(contentType: ContentType, blockType: string) {
 }
 
 export async function generateImageForBlock(params: {
+  client: OpenAI;
   contentType: ContentType;
   title: string;
   body: string;
@@ -479,8 +480,7 @@ export async function generateImageForBlock(params: {
   }
 
   try {
-    const client = getOpenAI();
-    const response = await client.images.generate({
+    const response = await params.client.images.generate({
       model: config.imageModel,
       prompt,
       size: params.contentType === "landing_page" ? "1536x1024" : "1024x1024",

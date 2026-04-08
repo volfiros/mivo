@@ -4,7 +4,12 @@ import type { Route } from "next";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import type { AuthenticatedUserSummary } from "@/lib/auth-types";
-import { createSignInHref, getSafeRedirectPath } from "@/lib/redirects";
+import {
+  createOpenAiSetupHref,
+  createSignInHref,
+  getSafeRedirectPath,
+} from "@/lib/redirects";
+import { getUserOpenAiApiKey, getUserOpenAiKeySummary } from "@/lib/openai-key";
 import {
   getGenerationJobForUser,
   getLatestUserDocument,
@@ -13,23 +18,38 @@ import {
   type UserDocumentSummary
 } from "@/lib/records";
 
-function toAuthenticatedUserSummary(user: Record<string, unknown>): AuthenticatedUserSummary {
-  const username =
-    typeof user.displayUsername === "string" && user.displayUsername
-      ? user.displayUsername
-      : typeof user.username === "string" && user.username
-        ? user.username
-        : typeof user.name === "string" && user.name
-          ? user.name
-          : typeof user.email === "string"
-            ? user.email
-            : "Account";
+function deriveUsername(user: Record<string, unknown>) {
+  if (typeof user.displayUsername === "string" && user.displayUsername) {
+    return user.displayUsername;
+  }
+
+  if (typeof user.username === "string" && user.username) {
+    return user.username;
+  }
+
+  if (typeof user.name === "string" && user.name) {
+    return user.name;
+  }
+
+  if (typeof user.email === "string" && user.email) {
+    return user.email;
+  }
+
+  return "Account";
+}
+
+async function toAuthenticatedUserSummary(user: Record<string, unknown>): Promise<AuthenticatedUserSummary> {
+  const userId = String(user.id);
+  const username = deriveUsername(user);
+  const keySummary = await getUserOpenAiKeySummary(userId);
 
   return {
-    id: String(user.id),
+    id: userId,
     email: typeof user.email === "string" ? user.email : "",
     username,
-    displayName: typeof user.name === "string" && user.name ? user.name : username
+    displayName: typeof user.name === "string" && user.name ? user.name : username,
+    hasOpenAiKey: keySummary.hasOpenAiKey,
+    maskedOpenAiKey: keySummary.maskedOpenAiKey,
   };
 }
 
@@ -47,7 +67,9 @@ export async function getRequestSession(request: Request) {
 
 export async function getCurrentUser() {
   const session = await getServerSession();
-  return session?.user ? toAuthenticatedUserSummary(session.user as Record<string, unknown>) : null;
+  return session?.user
+    ? toAuthenticatedUserSummary(session.user as Record<string, unknown>)
+    : null;
 }
 
 export async function requireUser(nextPath = "/studio") {
@@ -72,7 +94,7 @@ export async function requireRequestUser(request: Request) {
 
   return {
     response: null,
-    user: toAuthenticatedUserSummary(session.user as Record<string, unknown>)
+    user: await toAuthenticatedUserSummary(session.user as Record<string, unknown>)
   };
 }
 
@@ -98,6 +120,11 @@ export async function getOwnedJobOrNotFound(userId: string, jobId: string) {
 
 export async function getPostLoginRedirectPath(userId: string, requestedNext?: string | null) {
   const nextPath = getSafeRedirectPath(requestedNext, "");
+  const keySummary = await getUserOpenAiKeySummary(userId);
+
+  if (!keySummary.hasOpenAiKey) {
+    return createOpenAiSetupHref(nextPath || "/studio/new");
+  }
 
   if (nextPath) {
     return nextPath;
@@ -108,7 +135,38 @@ export async function getPostLoginRedirectPath(userId: string, requestedNext?: s
 }
 
 export function createLaunchHref(user: AuthenticatedUserSummary | null) {
-  return user ? "/studio" : createSignInHref("/studio");
+  return user ? "/studio/new" : createSignInHref("/studio/new");
+}
+
+export async function requireRequestUserOpenAiKey(request: Request) {
+  const authState = await requireRequestUser(request);
+
+  if (authState.response) {
+    return {
+      response: authState.response,
+      user: null,
+      apiKey: null,
+    };
+  }
+
+  const apiKey = await getUserOpenAiApiKey(authState.user.id);
+
+  if (!apiKey) {
+    return {
+      response: NextResponse.json(
+        { error: "Add your OpenAI key to continue." },
+        { status: 400 },
+      ),
+      user: authState.user,
+      apiKey: null,
+    };
+  }
+
+  return {
+    response: null,
+    user: authState.user,
+    apiKey,
+  };
 }
 
 export type { UserDocumentSummary };

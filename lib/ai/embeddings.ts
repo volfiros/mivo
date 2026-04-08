@@ -3,14 +3,14 @@ import { getOpenAI } from "@/lib/ai/client";
 
 const EMBEDDING_BATCH_SIZE = 32;
 
-export async function embedTexts(values: string[]) {
+export async function embedTexts(values: string[], apiKey: string) {
   const normalizedValues = values.map((value) => value.trim());
 
   if (!normalizedValues.length || normalizedValues.every((value) => !value)) {
     return [];
   }
 
-  const client = getOpenAI();
+  const client = getOpenAI(apiKey);
   const embeddings: number[][] = [];
 
   for (let index = 0; index < normalizedValues.length; index += EMBEDDING_BATCH_SIZE) {
@@ -26,8 +26,8 @@ export async function embedTexts(values: string[]) {
   return embeddings;
 }
 
-export async function embedSingleText(value: string) {
-  const [embedding] = await embedTexts([value]);
+export async function embedSingleText(value: string, apiKey: string) {
+  const [embedding] = await embedTexts([value], apiKey);
   return embedding ?? null;
 }
 

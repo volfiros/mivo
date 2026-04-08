@@ -9,7 +9,10 @@ export const user = pgTable("user", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   username: text("username").unique(),
-  displayUsername: text("display_username")
+  displayUsername: text("display_username"),
+  openAiApiKeyEncrypted: text("open_ai_api_key_encrypted"),
+  openAiApiKeyLastFour: text("open_ai_api_key_last_four"),
+  openAiApiKeyUpdatedAt: timestamp("open_ai_api_key_updated_at")
 });
 
 export const session = pgTable(

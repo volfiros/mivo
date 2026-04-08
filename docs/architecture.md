@@ -33,6 +33,8 @@ flowchart LR
     A["Workspace UI (TipTap)"] --> B["POST /api/generations"]
     B --> C["generation_jobs"]
     A --> D["GET /api/generations/:jobId/stream"]
+    A --> L["PUT /api/account/openai-key"]
+    L --> M["user.open_ai_api_key_*"]
     D --> E["Outline generation"]
     E --> F["Block generation stream"]
     F --> G["SSE events: outline, preview deltas, completed blocks, assets"]
@@ -135,17 +137,19 @@ Uploaded files are:
 1. stored in database-backed asset storage
 2. text-extracted
 3. chunked into `document_context_chunks`
-4. embedded with the configured OpenAI embedding model
+4. embedded with the authenticated user's OpenAI embedding access
 
-During draft generation, the app embeds the synthesis query, scores the stored chunk embeddings in application code, and injects the top relevant chunks into outline/block generation prompts.
+During draft generation, the app decrypts the authenticated user's stored OpenAI key, embeds the synthesis query, scores the stored chunk embeddings in application code, and injects the top relevant chunks into outline/block generation prompts.
 
 ## Why The Architecture Is Reasonable
 
 ### Separation of concerns
 
 - `app/api/*` handles transport and auth boundaries.
+- `app/api/account/openai-key*` handles key validation, storage, and reveal-on-demand.
 - `lib/records.ts` handles persistence and document lifecycle.
-- `lib/ai/*` handles model calls, prompts, and streaming parsing.
+- `lib/openai-key.ts` handles per-user key encryption, masking, validation, and retrieval.
+- `lib/ai/*` handles model calls, prompts, and streaming parsing using the current user's key.
 - `lib/schema/*` owns the content contract and editor-safe transforms.
 - `components/studio/workspace.tsx` owns interaction and live orchestration on the client.
 - Tailwind CSS, Radix UI Themes, and shared primitives keep the visual layer consistent without coupling UI styling to the generation pipeline.

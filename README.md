@@ -1,6 +1,6 @@
 # Mivo
 
-Mivo is an AI-powered content editor for structured marketing content. It uses TipTap for rich editing, OpenAI for outline and block generation, and a Next.js + Postgres backend for document persistence, uploads, and version history.
+Mivo is an AI-powered content editor for structured marketing content. It uses TipTap for rich editing, each user's own OpenAI key for outline and block generation, and a Next.js + Postgres backend for document persistence, uploads, and version history.
 
 ## Demo
 
@@ -13,6 +13,7 @@ Watch the demo video: [Getting Started with Mivo AI](https://www.tella.tv/video/
 - Structured output designed for renderable editorial and layout blocks, not plain text dumps.
 - Progressive rendering via server-sent events, outline placeholders, per-block previews, and block completion events.
 - Attachment uploads for text, Markdown, PDF, and DOCX with semantic retrieval for generation grounding.
+- Per-account OpenAI key setup, masking, reveal-on-demand, and rotation.
 - Dedicated preview flow backed by the same document schema.
 - Selection-based micro-revision workflow.
 - Version history with checkpointed storage and historical preview.
@@ -23,6 +24,7 @@ Watch the demo video: [Getting Started with Mivo AI](https://www.tella.tv/video/
 - Generate structured content into the editor from a prompt.
 - Stream generation progressively instead of waiting for the full document.
 - Upload attachments, chunk and embed them, and use semantically retrieved context during draft generation.
+- Save a personal OpenAI key after sign-in and use it across generation, rewrite, and upload flows.
 - Preview the current draft or a historical version.
 - Save point-in-time versions with checkpointed storage.
 - Highlight text and request a targeted rewrite.
@@ -49,7 +51,7 @@ Watch the demo video: [Getting Started with Mivo AI](https://www.tella.tv/video/
 - Node.js 20+
 - `pnpm`
 - Postgres
-- OpenAI API key
+- An OpenAI API key for each account
 
 ### Environment
 
@@ -61,8 +63,8 @@ cp .env.example .env
 
 Required values:
 
-- `OPENAI_API_KEY`
 - `DATABASE_URL`
+- `USER_OPENAI_KEY_ENCRYPTION_SECRET`
 
 Optional overrides:
 
@@ -97,6 +99,7 @@ pnpm db:generate
 
 - Uploaded attachment files and generated images are stored in Postgres-backed asset storage.
 - Documents, version metadata, attachment metadata, chunk text, and chunk embeddings live in Postgres.
+- Each user record stores one encrypted OpenAI key plus masked metadata for UI display.
 - Version history uses periodic checkpoints plus JSON patches for later versions.
 
 ## Project Structure

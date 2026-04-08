@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { embedTexts } from "@/lib/ai/embeddings";
 import { createRouteErrorResponse } from "@/lib/api-error";
-import { requireRequestUser } from "@/lib/auth-helpers";
+import { requireRequestUserOpenAiKey } from "@/lib/auth-helpers";
 import { chunkText, saveUpload } from "@/lib/storage";
 import { createAttachmentRecord } from "@/lib/records";
 
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const authState = await requireRequestUser(request);
+  const authState = await requireRequestUserOpenAiKey(request);
 
   if (authState.response) {
     return authState.response;
@@ -29,12 +29,8 @@ export async function POST(request: Request) {
     let chunkEmbeddings: Array<number[] | null> = chunks.map(() => null);
 
     if (chunks.length) {
-      try {
-        const embeddings = await embedTexts(chunks);
-        chunkEmbeddings = chunks.map((_, index) => embeddings[index] ?? null);
-      } catch {
-        chunkEmbeddings = chunks.map(() => null);
-      }
+      const embeddings = await embedTexts(chunks, authState.apiKey);
+      chunkEmbeddings = chunks.map((_, index) => embeddings[index] ?? null);
     }
 
     const attachmentId = await createAttachmentRecord({

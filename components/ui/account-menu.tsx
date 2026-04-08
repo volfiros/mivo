@@ -3,15 +3,21 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AuthenticatedUserSummary } from "@/lib/auth-types";
+import {
+  type OpenAiKeyState,
+  OpenAiKeyManager,
+} from "@/components/account/openai-key-manager";
 import { authClient } from "@/lib/auth-client";
 import { AppButton } from "@/components/ui/primitives";
 
 export function AccountMenu({
   user,
   disabled = false,
+  onOpenAiKeyChange,
 }: {
   user: AuthenticatedUserSummary;
   disabled?: boolean;
+  onOpenAiKeyChange?: (state: OpenAiKeyState) => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -65,10 +71,10 @@ export function AccountMenu({
         </div>
       </button>
       {open ? (
-        <div className="motion-fade-in-fast motion-scale-in-fast absolute right-0 top-[calc(100%+0.5rem)] z-50 w-64 rounded-xl border border-[var(--border)]/80 bg-[#0A0A0A]/95 p-4 shadow-2xl backdrop-blur-xl">
+        <div className="motion-fade-in-fast motion-scale-in-fast absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[22rem] rounded-xl border border-[var(--border)]/80 bg-[#0A0A0A]/95 p-4 shadow-2xl backdrop-blur-xl">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-strong)]/40 to-transparent opacity-50" />
 
-          <div className="mb-5 pb-4 border-b border-[var(--border)]/40 relative">
+          <div className="mb-4 pb-4 border-b border-[var(--border)]/40 relative">
             <div className="absolute left-0 top-1 w-1.5 h-1.5 rounded-full bg-[var(--accent-strong)] animate-pulse shadow-[0_0_8px_var(--accent-strong)]" />
             <div className="pl-4">
               <p className="truncate text-sm font-semibold text-white tracking-tight">
@@ -79,12 +85,20 @@ export function AccountMenu({
               </p>
             </div>
           </div>
+          <OpenAiKeyManager
+            initialState={{
+              hasOpenAiKey: user.hasOpenAiKey,
+              maskedOpenAiKey: user.maskedOpenAiKey,
+            }}
+            mode="menu"
+            onStateChange={onOpenAiKeyChange}
+          />
           <AppButton
             type="button"
             tone="ghost"
             disabled={busy || disabled}
             onClick={handleSignOut}
-            className="w-full justify-start h-9 px-3 text-xs border border-transparent hover:bg-[var(--surface-2)] hover:border-[var(--border)] transition-all"
+            className="mt-4 w-full justify-start h-9 px-3 text-xs border border-transparent hover:bg-[var(--surface-2)] hover:border-[var(--border)] transition-all"
           >
             {busy ? "Terminating Session..." : "Terminate Session"}
           </AppButton>

@@ -3,4 +3,6 @@ export type AuthenticatedUserSummary = {
   email: string;
   username: string;
   displayName: string;
+  hasOpenAiKey: boolean;
+  maskedOpenAiKey: string | null;
 };

@@ -634,6 +634,7 @@ export async function getAttachmentContext(params: {
   userId: string;
   documentId: string;
   retrievalQuery: string;
+  apiKey: string;
   attachmentIds?: string[];
 }) {
   await ensureDatabase();
@@ -668,7 +669,7 @@ export async function getAttachmentContext(params: {
   let queryEmbedding: number[] | null = null;
 
   try {
-    queryEmbedding = await embedSingleText(normalizedQuery);
+    queryEmbedding = await embedSingleText(normalizedQuery, params.apiKey);
   } catch {
     return fallbackContext;
   }

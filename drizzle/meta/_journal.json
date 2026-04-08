@@ -22,6 +22,13 @@
       "when": 1774492752383,
       "tag": "0002_violet_shard",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1774588640569,
+      "tag": "0003_closed_skaar",
+      "breakpoints": true
     }
   ]
 }

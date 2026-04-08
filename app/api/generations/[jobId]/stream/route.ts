@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { JSONContent } from "@tiptap/core";
+import { getOpenAI } from "@/lib/ai/client";
 import { requireRequestUser } from "@/lib/auth-helpers";
+import { getUserOpenAiApiKey } from "@/lib/openai-key";
 import {
   appendGenerationEvent,
   claimQueuedGenerationJob,
@@ -38,6 +40,24 @@ const encoder = new TextEncoder();
 
 function toSse(event: OutboundEvent, id?: number) {
   return `${typeof id === "number" ? `id: ${id}\n` : ""}data: ${JSON.stringify(event)}\n\n`;
+}
+
+function createEventStreamResponse(event: OutboundEvent) {
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(toSse(event)));
+      controller.close();
+    }
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no"
+    }
+  });
 }
 
 function yieldForStreaming() {
@@ -264,6 +284,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
     return NextResponse.json({ error: "Generation job not found" }, { status: 404 });
   }
 
+  const apiKey = await getUserOpenAiApiKey(authState.user.id);
+
+  if (!apiKey) {
+    await setJobStatus(jobId, "failed", 0, "Add your OpenAI key to continue.");
+    return createEventStreamResponse({
+      type: "block.failed",
+      payload: {
+        blockId: "__generation__",
+        error: "Add your OpenAI key to continue."
+      }
+    });
+  }
+
+  const client = getOpenAI(apiKey);
+
   const lastEventIdHeader = request.headers.get("last-event-id");
   const lastEventSequence = Number.parseInt(lastEventIdHeader ?? "0", 10);
   const initialSequence = Number.isFinite(lastEventSequence) ? lastEventSequence : 0;
@@ -347,12 +382,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
           title: requestPayload.title?.trim() || document.title,
         });
         const attachmentContext = await getAttachmentContext({
+          apiKey,
           userId: authState.user.id,
           documentId: requestPayload.documentId,
           attachmentIds: requestPayload.attachmentIds ?? [],
           retrievalQuery,
         });
         const outline = (await generateOutline({
+          client,
           contentType,
           prompt: requestPayload.prompt,
           context: attachmentContext
@@ -405,6 +442,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
             ).kind;
 
             const structuredBlock = await streamBlock({
+              client,
               contentType,
               blockType: block.type as Parameters<typeof streamBlock>[0]["blockType"],
               prompt: requestPayload.prompt,
@@ -491,6 +529,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
               imageGenerationTasks.push(
                 (async () => {
                   const imageUrl = await generateImageForBlock({
+                    client,
                     contentType,
                     title: imageBlock.title,
                     body: imageBlock.body,

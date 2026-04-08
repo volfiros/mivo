@@ -3,6 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import type { AuthenticatedUserSummary } from "@/lib/auth-types";
+import {
+  type OpenAiKeyState,
+  OpenAiKeyManager,
+} from "@/components/account/openai-key-manager";
 import { AccountMenu } from "@/components/ui/account-menu";
 import {
   AppButton,
@@ -21,6 +25,10 @@ const contentTypes = [
 
 export function NewDocumentForm({ user }: { user: AuthenticatedUserSummary }) {
   const router = useRouter();
+  const [accountState, setAccountState] = useState<OpenAiKeyState>({
+    hasOpenAiKey: user.hasOpenAiKey,
+    maskedOpenAiKey: user.maskedOpenAiKey,
+  });
   const [contentType, setContentType] = useState("blog_post");
   const [title, setTitle] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -51,6 +59,12 @@ export function NewDocumentForm({ user }: { user: AuthenticatedUserSummary }) {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!accountState.hasOpenAiKey) {
+      setErrorMessage("Add your OpenAI key before creating a workspace.");
+      return;
+    }
+
     setSubmitting(true);
     setErrorMessage("");
 
@@ -96,7 +110,10 @@ export function NewDocumentForm({ user }: { user: AuthenticatedUserSummary }) {
           >
             Mivo
           </AppNavLink>
-          <AccountMenu user={user} />
+          <AccountMenu
+            user={{ ...user, ...accountState }}
+            onOpenAiKeyChange={setAccountState}
+          />
         </header>
         <div className="flex flex-col lg:flex-row flex-1 items-center justify-between gap-16 py-16 lg:py-0">
           <div className="min-w-0 flex-1 max-w-2xl lg:max-w-none">
@@ -156,6 +173,18 @@ export function NewDocumentForm({ user }: { user: AuthenticatedUserSummary }) {
                 onSubmit={handleSubmit}
                 className="motion-fade-in"
               >
+                {!accountState.hasOpenAiKey ? (
+                  <div className="mb-6">
+                    <OpenAiKeyManager
+                      initialState={accountState}
+                      mode="gate"
+                      onStateChange={(nextState) => {
+                        setAccountState(nextState);
+                        setErrorMessage("");
+                      }}
+                    />
+                  </div>
+                ) : null}
                 <div className="space-y-5">
                   <label className="space-y-2 block">
                     <FieldLabel>Content Type</FieldLabel>
@@ -178,12 +207,13 @@ export function NewDocumentForm({ user }: { user: AuthenticatedUserSummary }) {
                 <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
                   <AppButton
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || !accountState.hasOpenAiKey}
+                    aria-disabled={!accountState.hasOpenAiKey}
                     tone="primary"
                     size="3"
-                    className="w-full sm:w-auto h-12 px-8 shadow-[0_0_20px_rgba(47,223,160,0.15)]"
+                    className="w-full sm:w-auto h-12 px-8 shadow-[0_0_20px_rgba(47,223,160,0.15)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Launch App
+                    {accountState.hasOpenAiKey ? "Launch App" : "Save Key First"}
                   </AppButton>
                   <AppNavLink
                     href="/"

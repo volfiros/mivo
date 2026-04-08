@@ -8,6 +8,10 @@ import type { JSONContent } from "@tiptap/core";
 import { clsx } from "clsx";
 import type { AuthenticatedUserSummary } from "@/lib/auth-types";
 import {
+  type OpenAiKeyState,
+  OpenAiKeyManager,
+} from "@/components/account/openai-key-manager";
+import {
   LandingPageSurface,
   LandingPageViewport,
 } from "@/components/editor/landing-page-presentation";
@@ -300,6 +304,10 @@ export function Workspace({
   >({});
   const generationBaseContentRef = useRef<JSONContent | null>(null);
   const contentType = document.contentType as ContentType;
+  const [accountState, setAccountState] = useState<OpenAiKeyState>({
+    hasOpenAiKey: user.hasOpenAiKey,
+    maskedOpenAiKey: user.maskedOpenAiKey,
+  });
   const [archiveItems, setArchiveItems] = useState(draftHistory);
   const [serverTitle, setServerTitle] = useState(document.title);
   const [title, setTitle] = useState(document.title);
@@ -865,6 +873,11 @@ export function Workspace({
       return;
     }
 
+    if (!accountState.hasOpenAiKey) {
+      setVersionLoadError("Add your OpenAI key before starting generation.");
+      return;
+    }
+
     setStartingGeneration(true);
     setVersionLoadError("");
     generationBaseContentRef.current = cloneContent(editor.getJSON());
@@ -1239,6 +1252,11 @@ export function Workspace({
       return;
     }
 
+    if (!accountState.hasOpenAiKey) {
+      setVersionLoadError("Add your OpenAI key before using rewrite.");
+      return;
+    }
+
     setRewritingSelection(true);
 
     try {
@@ -1265,6 +1283,12 @@ export function Workspace({
     const file = event.target.files?.[0];
 
     if (!file || isViewingHistoricalVersion) {
+      return;
+    }
+
+    if (!accountState.hasOpenAiKey) {
+      setVersionLoadError("Add your OpenAI key before uploading attachments.");
+      event.target.value = "";
       return;
     }
 
@@ -1715,8 +1739,9 @@ export function Workspace({
                   </div>
                 </div>
                 <AccountMenu
-                  user={user}
+                  user={{ ...user, ...accountState }}
                   disabled={overallStatus === "generating" || savingVersion}
+                  onOpenAiKeyChange={setAccountState}
                 />
               </div>
               <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -1899,6 +1924,16 @@ export function Workspace({
 
       <aside className="studio-rail border-l border-[var(--border)]/50 px-5 py-6 md:px-6 bg-[#0A0A0A]/80 backdrop-blur-xl relative z-10 h-full overflow-y-auto pb-10">
         <div className="space-y-6">
+          {!accountState.hasOpenAiKey ? (
+            <OpenAiKeyManager
+              initialState={accountState}
+              mode="gate"
+              onStateChange={(nextState) => {
+                setAccountState(nextState);
+                setVersionLoadError("");
+              }}
+            />
+          ) : null}
           <div>
             <p className="mb-4 text-[10px] uppercase tracking-[0.2em] font-semibold text-[var(--text-soft)]">
               Intelligence
@@ -1919,6 +1954,7 @@ export function Workspace({
                 type="button"
                 onClick={handleGenerate}
                 disabled={
+                  !accountState.hasOpenAiKey ||
                   !prompt.trim() ||
                   overallStatus === "generating" ||
                   isViewingHistoricalVersion ||
@@ -1958,6 +1994,7 @@ export function Workspace({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={
+                    !accountState.hasOpenAiKey ||
                     busyUpload || isViewingHistoricalVersion || savingVersion
                   }
                   aria-busy={busyUpload}
@@ -1973,7 +2010,12 @@ export function Workspace({
                   ref={fileInputRef}
                   type="file"
                   className="hidden"
-                  disabled={busyUpload || isViewingHistoricalVersion || savingVersion}
+                  disabled={
+                    !accountState.hasOpenAiKey ||
+                    busyUpload ||
+                    isViewingHistoricalVersion ||
+                    savingVersion
+                  }
                   onChange={handleUpload}
                 />
               </div>
@@ -1997,7 +2039,11 @@ export function Workspace({
                   value={rewritePrompt}
                   onChange={(event) => setRewritePrompt(event.target.value)}
                   rows={2}
-                  disabled={isViewingHistoricalVersion || savingVersion}
+                  disabled={
+                    !accountState.hasOpenAiKey ||
+                    isViewingHistoricalVersion ||
+                    savingVersion
+                  }
                   placeholder="Refinement instruction..."
                   className="bg-transparent border-none shadow-none text-sm resize-none focus:ring-0"
                 />
@@ -2007,6 +2053,7 @@ export function Workspace({
               type="button"
               onClick={handleRewriteSelection}
               disabled={
+                !accountState.hasOpenAiKey ||
                 !selectionText ||
                 !rewritePrompt.trim() ||
                 isViewingHistoricalVersion ||
