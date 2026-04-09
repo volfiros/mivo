@@ -17,4 +17,9 @@ test-results
 *.sqlite-shm
 *.sqlite-wal
 *.tsbuildinfo
+.DS_Store
 AGENTS.md
+.pi/
+.plan/
+test-zhipu.mjs
+examples/

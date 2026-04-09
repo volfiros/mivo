@@ -1,9 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import clsx from "clsx";
 import { AppButton } from "@/components/ui/primitives";
 
 export type OpenAiKeyState = {
@@ -13,8 +11,6 @@ export type OpenAiKeyState = {
 
 type OpenAiKeyManagerProps = {
   initialState: OpenAiKeyState;
-  mode: "setup" | "gate" | "menu";
-  nextPath?: string;
   onStateChange?: (state: OpenAiKeyState) => void;
 };
 
@@ -31,8 +27,6 @@ function normalizeSummary(payload: KeySummaryResponse): OpenAiKeyState {
 
 export function OpenAiKeyManager({
   initialState,
-  mode,
-  nextPath,
   onStateChange,
 }: OpenAiKeyManagerProps) {
   const router = useRouter();
@@ -40,23 +34,15 @@ export function OpenAiKeyManager({
   const [draftKey, setDraftKey] = useState("");
   const [revealedKey, setRevealedKey] = useState("");
   const [showRevealedKey, setShowRevealedKey] = useState(false);
-  const [isEditing, setIsEditing] = useState(!initialState.hasOpenAiKey || mode !== "menu");
+  const [isEditing, setIsEditing] = useState(!initialState.hasOpenAiKey);
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [revealing, setRevealing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const description = useMemo(() => {
-    if (mode === "setup") {
-      return "Add your OpenAI key before entering the studio.";
-    }
-
-    if (mode === "menu") {
-      return "Used for generation, rewrite, and attachment grounding.";
-    }
-
-    return "Generation stays locked until a valid key is saved.";
-  }, [mode]);
+    return "Used for generation, rewrite, and attachment grounding.";
+  }, []);
 
   function syncState(nextState: OpenAiKeyState) {
     setState(nextState);
@@ -105,12 +91,8 @@ export function OpenAiKeyManager({
       setDraftKey("");
       setRevealedKey("");
       setShowRevealedKey(false);
-      setIsEditing(mode !== "menu");
+      setIsEditing(false);
       router.refresh();
-
-      if (mode === "setup") {
-        router.push((nextPath ?? "/studio/new") as Route);
-      }
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Unable to save OpenAI key.",
@@ -195,15 +177,10 @@ export function OpenAiKeyManager({
   }
 
   const keyValue = showRevealedKey ? revealedKey : state.maskedOpenAiKey ?? "";
-  const showMenuReadState = mode === "menu" && state.hasOpenAiKey && !isEditing;
+  const showMenuReadState = state.hasOpenAiKey && !isEditing;
 
   return (
-    <div
-      className={clsx(
-        "border border-[var(--border)]/70 bg-[#0D0F0E]",
-        mode === "menu" ? "rounded-lg p-3" : "rounded-xl p-4 sm:p-5",
-      )}
-    >
+    <div className="border border-[var(--border)]/70 bg-[#0D0F0E] rounded-lg p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-white">OpenAI Key</p>
@@ -315,9 +292,9 @@ export function OpenAiKeyManager({
                 void handleSave();
               }}
             >
-              {saving ? "Saving..." : state.hasOpenAiKey ? "Replace Key" : "Save Key"}
+              {saving ? "Saving..." : "Replace Key"}
             </AppButton>
-            {mode === "menu" && state.hasOpenAiKey ? (
+            {state.hasOpenAiKey ? (
               <AppButton
                 type="button"
                 tone="ghost"

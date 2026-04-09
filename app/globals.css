@@ -423,6 +423,22 @@ label {
     background:
         linear-gradient(180deg, rgba(8, 12, 10, 0.98), rgba(8, 12, 10, 0.86)),
         rgba(8, 12, 10, 0.82);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.studio-rail::-webkit-scrollbar {
+    width: 4px;
+    display: block;
+}
+
+.studio-rail::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.studio-rail::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
 }
 
 .studio-editor-frame {

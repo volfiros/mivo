@@ -8,10 +8,6 @@ import type { JSONContent } from "@tiptap/core";
 import { clsx } from "clsx";
 import type { AuthenticatedUserSummary } from "@/lib/auth-types";
 import {
-  type OpenAiKeyState,
-  OpenAiKeyManager,
-} from "@/components/account/openai-key-manager";
-import {
   LandingPageSurface,
   LandingPageViewport,
 } from "@/components/editor/landing-page-presentation";
@@ -19,6 +15,7 @@ import { buildEditorExtensions } from "@/lib/editor/extensions";
 import { AccountMenu } from "@/components/ui/account-menu";
 import {
   createEmptyDocument,
+  hydrateNodesFromPreview,
   insertPlaceholderNodes,
   replacePlaceholderWithNodes,
   sanitizeDocumentContent,
@@ -170,123 +167,6 @@ function createContentSnapshotKey(content: JSONContent, contentType: ContentType
   return JSON.stringify(canonicalizeSnapshotValue(safeContent));
 }
 
-function fillAttr(value: unknown, fallback?: string) {
-  if (typeof value === "string" && value.trim()) {
-    return value;
-  }
-
-  return fallback?.trim() ?? "";
-}
-
-function hydrateCompletedNodesFromPreview(
-  nodes: JSONContent[],
-  cachedPreview?: { preview: string; previewKind: "plain" | "rich_text" },
-) {
-  if (!nodes.length || !cachedPreview?.preview.trim()) {
-    return nodes;
-  }
-
-  const sections = cachedPreview.preview
-    .split(/\n{2,}/)
-    .map((section) => section.trim())
-    .filter(Boolean);
-
-  if (!sections.length) {
-    return nodes;
-  }
-
-  return nodes.map((node, index) => {
-    if (index !== 0 || !node.attrs || typeof node.type !== "string") {
-      return node;
-    }
-
-    switch (node.type) {
-      case "ctaBanner":
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            title: fillAttr(node.attrs.title, sections[0]),
-            body: fillAttr(node.attrs.body, sections[1]),
-            actionLabel: fillAttr(node.attrs.actionLabel, sections[2] ?? sections[0]),
-          },
-        };
-      case "heroSection":
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            title: fillAttr(node.attrs.title, sections[0]),
-            subtitle: fillAttr(node.attrs.subtitle, sections[1]),
-            actionLabel: fillAttr(node.attrs.actionLabel, sections[2]),
-          },
-        };
-      case "twoColumn":
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            leftTitle: fillAttr(node.attrs.leftTitle, sections[0]),
-            leftBody: fillAttr(node.attrs.leftBody, sections[1]),
-            rightTitle: fillAttr(node.attrs.rightTitle, sections[2]),
-            rightBody: fillAttr(node.attrs.rightBody, sections[3]),
-          },
-        };
-      case "imageWithCopy":
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            title: fillAttr(node.attrs.title, sections[0]),
-            body: fillAttr(node.attrs.body, sections[1]),
-          },
-        };
-      case "calloutBlock":
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            label: fillAttr(node.attrs.label, sections[0]),
-            body: fillAttr(node.attrs.body, sections[1]),
-          },
-        };
-      case "quoteBlock":
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            quote: fillAttr(node.attrs.quote, sections[0]),
-            attribution: fillAttr(node.attrs.attribution, sections[1]),
-          },
-        };
-      case "featureGrid": {
-        const pairs = [];
-
-        for (let cursor = 0; cursor < sections.length; cursor += 2) {
-          pairs.push([sections[cursor], sections[cursor + 1]]);
-        }
-
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            item1Title: fillAttr(node.attrs.item1Title, pairs[0]?.[0]),
-            item1Body: fillAttr(node.attrs.item1Body, pairs[0]?.[1]),
-            item2Title: fillAttr(node.attrs.item2Title, pairs[1]?.[0]),
-            item2Body: fillAttr(node.attrs.item2Body, pairs[1]?.[1]),
-            item3Title: fillAttr(node.attrs.item3Title, pairs[2]?.[0]),
-            item3Body: fillAttr(node.attrs.item3Body, pairs[2]?.[1]),
-            item4Title: fillAttr(node.attrs.item4Title, pairs[3]?.[0]),
-            item4Body: fillAttr(node.attrs.item4Body, pairs[3]?.[1]),
-          },
-        };
-      }
-      default:
-        return node;
-    }
-  });
-}
-
 export function Workspace({
   document,
   draftHistory,
@@ -303,8 +183,9 @@ export function Workspace({
     Record<string, { preview: string; previewKind: "plain" | "rich_text" }>
   >({});
   const generationBaseContentRef = useRef<JSONContent | null>(null);
+  const confirmDialogRef = useRef<HTMLDivElement | null>(null);
   const contentType = document.contentType as ContentType;
-  const [accountState, setAccountState] = useState<OpenAiKeyState>({
+  const [accountState, setAccountState] = useState<{ hasOpenAiKey: boolean; maskedOpenAiKey: string | null }>({
     hasOpenAiKey: user.hasOpenAiKey,
     maskedOpenAiKey: user.maskedOpenAiKey,
   });
@@ -343,6 +224,7 @@ export function Workspace({
   );
   const [versionLoadError, setVersionLoadError] = useState("");
   const [saveVersionError, setSaveVersionError] = useState("");
+  const [titleSaveError, setTitleSaveError] = useState("");
   const [loadingVersionId, setLoadingVersionId] = useState<string | null>(null);
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -515,6 +397,65 @@ export function Workspace({
   function closeConfirmDialog() {
     setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
   }
+
+  useEffect(() => {
+    if (!confirmDialog.isOpen) {
+      return;
+    }
+
+    const activeDialog = confirmDialogRef.current;
+    if (!activeDialog) {
+      return;
+    }
+
+    const cancelButton = activeDialog.querySelector<HTMLButtonElement>('button[data-tone="ghost"]');
+    cancelButton?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeConfirmDialog();
+        return;
+      }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const dialogEl = confirmDialogRef.current;
+      if (!dialogEl) {
+        return;
+      }
+
+      const focusable = dialogEl.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+
+      if (!focusable.length) {
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey) {
+        if (dialogEl.contains(window.document.activeElement) && window.document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (dialogEl.contains(window.document.activeElement) && window.document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    window.document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [confirmDialog.isOpen]);
 
   function requestDiscardUnsaved(message: string, onConfirm: () => void | Promise<void>) {
     setConfirmDialog({
@@ -790,6 +731,7 @@ export function Workspace({
   async function handleSaveTitle() {
     if (title === serverTitle || isViewingHistoricalVersion) return;
     setSavingTitle(true);
+    setTitleSaveError("");
     try {
       const response = await fetch(`/api/documents/${document.id}/title`, {
         method: "PATCH",
@@ -801,8 +743,8 @@ export function Workspace({
 
       setServerTitle(title);
       router.refresh();
-    } catch (error) {
-      console.error(error);
+    } catch {
+      setTitleSaveError("Unable to save title. Please try again.");
     } finally {
       setSavingTitle(false);
     }
@@ -1004,7 +946,13 @@ export function Workspace({
     streamRef.current = source;
 
     source.onmessage = (event) => {
-      const parsed = JSON.parse(event.data) as StreamEvent;
+      let parsed: StreamEvent;
+
+      try {
+        parsed = JSON.parse(event.data) as StreamEvent;
+      } catch {
+        return;
+      }
 
       if (!editor) {
         return;
@@ -1081,9 +1029,10 @@ export function Workspace({
       }
 
       if (parsed.type === "block.completed") {
-        const hydratedNodes = hydrateCompletedNodesFromPreview(
+        const cachedPreview = previewCacheRef.current[parsed.payload.blockId];
+        const hydratedNodes = hydrateNodesFromPreview(
           parsed.payload.nodes,
-          previewCacheRef.current[parsed.payload.blockId],
+          cachedPreview?.preview ?? "",
         );
         setBlockStatus((current) => ({
           ...current,
@@ -1271,9 +1220,25 @@ export function Workspace({
           selectionText,
         }),
       });
-      const payload = await response.json();
+      const payload = (await response.json()) as {
+        replacement?: string;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to rewrite selection.");
+      }
+
+      if (!payload.replacement) {
+        throw new Error("No replacement was returned.");
+      }
+
       editor.chain().focus().insertContent(payload.replacement).run();
       setRewritePrompt("");
+    } catch (error) {
+      setVersionLoadError(
+        error instanceof Error ? error.message : "Unable to rewrite selection.",
+      );
     } finally {
       setRewritingSelection(false);
     }
@@ -1786,6 +1751,9 @@ export function Workspace({
                     {savingTitle ? renderBusyButtonLabel("Saving...") : "Save Title"}
                   </AppButton>
                 )}
+                {titleSaveError ? (
+                  <p className="mt-1 text-[11px] text-[rgb(255,179,173)]">{titleSaveError}</p>
+                ) : null}
               </div>
             </div>
             <div className="flex flex-wrap gap-3 mt-2 items-center shrink-0 w-full">
@@ -1924,16 +1892,6 @@ export function Workspace({
 
       <aside className="studio-rail border-l border-[var(--border)]/50 px-5 py-6 md:px-6 bg-[#0A0A0A]/80 backdrop-blur-xl relative z-10 h-full overflow-y-auto pb-10">
         <div className="space-y-6">
-          {!accountState.hasOpenAiKey ? (
-            <OpenAiKeyManager
-              initialState={accountState}
-              mode="gate"
-              onStateChange={(nextState) => {
-                setAccountState(nextState);
-                setVersionLoadError("");
-              }}
-            />
-          ) : null}
           <div>
             <p className="mb-4 text-[10px] uppercase tracking-[0.2em] font-semibold text-[var(--text-soft)]">
               Intelligence
@@ -2123,7 +2081,7 @@ export function Workspace({
 
       {confirmDialog.isOpen && (
         <div className="motion-fade-in-fast fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="motion-fade-in-fast motion-scale-in-fast bg-[#0A0A0A] border border-[var(--border)] rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl relative overflow-hidden">
+          <div ref={confirmDialogRef} className="motion-fade-in-fast motion-scale-in-fast bg-[#0A0A0A] border border-[var(--border)] rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-transparent pointer-events-none" />
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-strong)]/50 to-transparent opacity-50" />
 

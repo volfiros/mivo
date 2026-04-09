@@ -1,3 +1,5 @@
+import type { Route } from "next";
+import { redirect } from "next/navigation";
 import { requireOwnedDocument, requireUser } from "@/lib/auth-helpers";
 import { Workspace } from "@/components/studio/workspace";
 import { listUserDocuments } from "@/lib/records";
@@ -11,6 +13,11 @@ export default async function StudioDocumentPage({
 }) {
   const { documentId } = await params;
   const user = await requireUser(`/studio/${documentId}`);
+
+  if (!user.hasOpenAiKey) {
+    redirect(`/setup/openai?next=${encodeURIComponent(`/studio/${documentId}`)}` as Route);
+  }
+
   const [document, draftHistory] = await Promise.all([
     requireOwnedDocument(user.id, documentId),
     listUserDocuments(user.id)

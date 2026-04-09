@@ -1,6 +1,6 @@
 import type { Route } from "next";
 import { redirect } from "next/navigation";
-import { OpenAiKeyManager } from "@/components/account/openai-key-manager";
+import { OpenAiSetupForm } from "@/components/account/openai-setup-form";
 import { AppNavLink } from "@/components/ui/primitives";
 import { requireUser } from "@/lib/auth-helpers";
 import { getSafeRedirectPath } from "@/lib/redirects";
@@ -38,30 +38,58 @@ export default async function OpenAiSetupPage({
           </div>
         </header>
 
-        <div className="flex flex-1 items-center justify-between gap-16 py-16 lg:py-0">
-          <div className="min-w-0 flex-1 max-w-2xl">
-            <p className="text-sm text-[var(--text-soft)]">Account setup</p>
-            <h1 className="mt-5 font-display text-5xl sm:text-6xl leading-[1.04] tracking-tight">
-              Connect your
-              <br />
-              OpenAI key.
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-[var(--text-muted)]">
-              Mivo now runs on the key attached to your account. Save it once,
-              then continue into workspace creation.
-            </p>
-          </div>
+        <div className="flex flex-1 items-center justify-center py-16 relative z-10">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[var(--accent-strong)]/10 blur-[120px] rounded-full pointer-events-none" />
 
-          <div className="w-full max-w-[520px] shrink-0">
-            <div className="rounded-xl border border-[var(--border)] bg-[#0A0A0A] p-6">
-              <OpenAiKeyManager
-                initialState={{
-                  hasOpenAiKey: user.hasOpenAiKey,
-                  maskedOpenAiKey: user.maskedOpenAiKey,
-                }}
-                mode="setup"
-                nextPath={nextPath}
-              />
+          <div className="flex flex-col lg:flex-row flex-1 items-center justify-between gap-16 w-full">
+            <div className="min-w-0 flex-1 max-w-2xl lg:max-w-none">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-md mb-8">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--accent-strong)]">
+                  One-Time Setup
+                </span>
+              </div>
+              <h1 className="font-display text-5xl sm:text-6xl lg:text-[4.5rem] leading-[1.05] tracking-tight mb-8">
+                Power your <br className="hidden lg:block" />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-[var(--accent-strong)]">
+                  workspace.
+                </span>
+              </h1>
+              <p className="text-lg sm:text-xl leading-relaxed text-[var(--text-muted)] max-w-xl mb-12">
+                Mivo uses your own OpenAI key for generation, rewrite, and
+                attachment grounding. Save it once and start creating.
+              </p>
+              <div className="grid sm:grid-cols-3 gap-4 max-w-2xl">
+                {[
+                  {
+                    label: "01",
+                    text: "Your key is encrypted at rest with AES-256-GCM.",
+                  },
+                  {
+                    label: "02",
+                    text: "Only your account can decrypt and use the stored key.",
+                  },
+                  {
+                    label: "03",
+                    text: "Replace or remove your key at any time from the menu.",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="p-4 rounded-xl border border-[var(--border)] bg-[#0A0A0A] hover:bg-[#0F0F0F] transition-colors flex items-start gap-4"
+                  >
+                    <div className="text-[10px] text-[var(--accent-strong)] font-mono font-semibold shrink-0 pt-1">
+                      {item.label}
+                    </div>
+                    <p className="text-sm leading-relaxed text-[var(--text-soft)]">
+                      {item.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="w-full lg:w-[480px] xl:w-[520px] shrink-0">
+              <OpenAiSetupForm nextPath={nextPath} />
             </div>
           </div>
         </div>

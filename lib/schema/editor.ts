@@ -1,5 +1,6 @@
 import type { JSONContent } from "@tiptap/core";
 import { type ContentType, type SemanticBlock } from "@/lib/schema/content";
+import { ensureText } from "@/lib/utils";
 
 type FeatureItem = {
   title: string;
@@ -1059,4 +1060,119 @@ function sanitizeNode(node: JSONContent | null | undefined): JSONContent | null 
   }
 
   return nextNode;
+}
+
+/**
+ * Hydrate the first node in a block's output using streaming preview sections.
+ *
+ * Shared by the client workspace and the server-side generation stream.
+ * `previewText` should already be the raw multi-section string.
+ */
+export function hydrateNodesFromPreview(
+  nodes: JSONContent[],
+  previewText: string,
+): JSONContent[] {
+  if (!nodes.length || !previewText.trim()) {
+    return nodes;
+  }
+
+  const sections = previewText
+    .split(/\n{2,}/)
+    .map((section) => section.trim())
+    .filter(Boolean);
+
+  if (!sections.length) {
+    return nodes;
+  }
+
+  return nodes.map((node, index) => {
+    if (index !== 0 || !node.attrs || typeof node.type !== "string") {
+      return node;
+    }
+
+    switch (node.type) {
+      case "ctaBanner":
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            title: ensureText(node.attrs.title, sections[0]),
+            body: ensureText(node.attrs.body, sections[1]),
+            actionLabel: ensureText(node.attrs.actionLabel, sections[2] ?? sections[0]),
+          },
+        };
+      case "heroSection":
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            title: ensureText(node.attrs.title, sections[0]),
+            subtitle: ensureText(node.attrs.subtitle, sections[1]),
+            actionLabel: ensureText(node.attrs.actionLabel, sections[2]),
+          },
+        };
+      case "twoColumn":
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            leftTitle: ensureText(node.attrs.leftTitle, sections[0]),
+            leftBody: ensureText(node.attrs.leftBody, sections[1]),
+            rightTitle: ensureText(node.attrs.rightTitle, sections[2]),
+            rightBody: ensureText(node.attrs.rightBody, sections[3]),
+          },
+        };
+      case "imageWithCopy":
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            title: ensureText(node.attrs.title, sections[0]),
+            body: ensureText(node.attrs.body, sections[1]),
+          },
+        };
+      case "calloutBlock":
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            label: ensureText(node.attrs.label, sections[0]),
+            body: ensureText(node.attrs.body, sections[1]),
+          },
+        };
+      case "quoteBlock":
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            quote: ensureText(node.attrs.quote, sections[0]),
+            attribution: ensureText(node.attrs.attribution, sections[1]),
+          },
+        };
+      case "featureGrid": {
+        const pairs: Array<[string, string | undefined]> = [];
+
+        for (let cursor = 0; cursor < sections.length; cursor += 2) {
+          pairs.push([sections[cursor], sections[cursor + 1]]);
+        }
+
+        return {
+          ...node,
+          attrs: {
+            ...node.attrs,
+            item1Title: ensureText(node.attrs.item1Title, pairs[0]?.[0]),
+            item1Body: ensureText(node.attrs.item1Body, pairs[0]?.[1]),
+            item2Title: ensureText(node.attrs.item2Title, pairs[1]?.[0]),
+            item2Body: ensureText(node.attrs.item2Body, pairs[1]?.[1]),
+            item3Title: ensureText(node.attrs.item3Title, pairs[2]?.[0]),
+            item3Body: ensureText(node.attrs.item3Body, pairs[2]?.[1]),
+            item4Title: ensureText(node.attrs.item4Title, pairs[3]?.[0]),
+            item4Body: ensureText(node.attrs.item4Body, pairs[3]?.[1]),
+          },
+        };
+      }
+      default:
+        return node;
+    }
+  });
 }

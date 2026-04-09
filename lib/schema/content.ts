@@ -90,9 +90,7 @@ export const semanticBlockSchema = z.discriminatedUnion("type", [
 
 export const outlineBlockSchema = z.object({
   blockId: nonEmptyText,
-  type: semanticBlockSchema.options.map((option) => option.shape.type.value).includes("rich_text")
-    ? z.enum(["rich_text", "hero_section", "two_column", "image_with_copy", "callout", "quote", "cta_banner", "feature_grid"])
-    : z.never(),
+  type: z.enum(["rich_text", "hero_section", "two_column", "image_with_copy", "callout", "quote", "cta_banner", "feature_grid"]),
   label: nonEmptyText,
   goal: nonEmptyText
 });

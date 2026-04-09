@@ -1,5 +1,3 @@
-import type { Route } from "next";
-import NextLink from "next/link";
 import type { AuthenticatedUserSummary } from "@/lib/auth-types";
 import { AccountMenu } from "@/components/ui/account-menu";
 import { AppButtonLink, AppNavLink } from "@/components/ui/primitives";
@@ -298,8 +296,8 @@ export function Landing({
                   </p>
                 </div>
               ))}
-              <NextLink
-                href={workflowAction.href as Route}
+              <AppNavLink
+                href={workflowAction.href}
                 className="group relative flex flex-col p-6 rounded-2xl border border-[var(--border)] bg-[#0A0A0A] overflow-hidden transition-all duration-300 hover:border-[var(--accent-strong)]/50 hover:bg-[#0F0F0F]"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -317,7 +315,7 @@ export function Landing({
                 <p className="text-sm text-[var(--text-muted)] leading-relaxed relative z-10">
                   {workflowAction.description}
                 </p>
-              </NextLink>
+              </AppNavLink>
             </div>
           </div>
         </section>

@@ -6,6 +6,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import StarterKit from "@tiptap/starter-kit";
 import { NodeViewContent, ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import { clsx } from "clsx";
+import { ensureText } from "@/lib/utils";
 import type { ContentType } from "@/lib/schema/content";
 import {
   LandingPageImageFrame,
@@ -27,13 +28,7 @@ type BlockProps = {
   selected: boolean;
 };
 
-function ensureText(value: unknown, fallback = "") {
-  if (typeof value === "string" && value.trim()) {
-    return value.trim();
-  }
 
-  return fallback.trim();
-}
 
 function splitSections(preview: string) {
   return preview
@@ -768,4 +763,3 @@ export function buildEditorExtensions(contentType: ContentType) {
   ];
 }
 
-export const editorExtensions = buildEditorExtensions("social_post");

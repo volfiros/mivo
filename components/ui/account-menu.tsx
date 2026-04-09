@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AuthenticatedUserSummary } from "@/lib/auth-types";
 import {
@@ -20,8 +20,39 @@ export function AccountMenu({
   onOpenAiKeyChange?: (state: OpenAiKeyState) => void;
 }) {
   const router = useRouter();
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
 
   async function handleSignOut() {
     if (busy || disabled) {
@@ -29,19 +60,22 @@ export function AccountMenu({
     }
 
     setBusy(true);
+    setSignOutError("");
 
     try {
       await authClient.signOut();
+      setOpen(false);
       router.push("/");
       router.refresh();
+    } catch {
+      setSignOutError("Unable to sign out. Please try again.");
     } finally {
       setBusy(false);
-      setOpen(false);
     }
   }
 
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block" ref={containerRef}>
       <button
         type="button"
         disabled={disabled}
@@ -90,7 +124,6 @@ export function AccountMenu({
               hasOpenAiKey: user.hasOpenAiKey,
               maskedOpenAiKey: user.maskedOpenAiKey,
             }}
-            mode="menu"
             onStateChange={onOpenAiKeyChange}
           />
           <AppButton
@@ -102,6 +135,9 @@ export function AccountMenu({
           >
             {busy ? "Terminating Session..." : "Terminate Session"}
           </AppButton>
+          {signOutError ? (
+            <p className="mt-2 text-xs text-[rgb(255,179,173)]">{signOutError}</p>
+          ) : null}
         </div>
       ) : null}
     </div>

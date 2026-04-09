@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { Route } from "next";
 import type { JSONContent } from "@tiptap/core";
 import type { ContentType } from "@/lib/schema/content";
+import { ensureText } from "@/lib/utils";
 import {
   LandingPageColumn,
   LandingPageFeatureCard,
@@ -164,14 +165,6 @@ function extractPlainText(content: JSONContent[] | undefined): string {
       })
       .join("") ?? ""
   );
-}
-
-function ensureText(value: unknown, fallback = "") {
-  if (typeof value === "string" && value.trim()) {
-    return value.trim();
-  }
-
-  return fallback.trim();
 }
 
 function renderLandingNode(node: JSONContent): ReactNode | null {

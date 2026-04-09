@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { JSONContent } from "@tiptap/core";
 import { getOpenAI } from "@/lib/ai/client";
 import { requireRequestUser } from "@/lib/auth-helpers";
+import { ensureText } from "@/lib/utils";
 import { getUserOpenAiApiKey } from "@/lib/openai-key";
 import {
   appendGenerationEvent,
@@ -23,6 +24,7 @@ import {
   streamBlock
 } from "@/lib/ai/generation";
 import {
+  hydrateNodesFromPreview,
   insertPlaceholderNodes,
   replacePlaceholderWithNodes,
   sanitizeDocumentContent,
@@ -71,14 +73,6 @@ function yieldForStreaming() {
   });
 }
 
-function fillText(value: unknown, fallback: string | undefined) {
-  if (typeof value === "string" && value.trim()) {
-    return value;
-  }
-
-  return fallback?.trim() ?? "";
-}
-
 function ensureRenderableBlock(
   blockType: string,
   block: Record<string, unknown>,
@@ -89,43 +83,43 @@ function ensureRenderableBlock(
     case "hero_section":
       return {
         ...block,
-        eyebrow: fillText(block.eyebrow, sectionLabel),
-        title: fillText(block.title, sectionLabel),
-        subtitle: fillText(block.subtitle, sectionGoal),
-        actionLabel: fillText(block.actionLabel, "Learn more"),
+        eyebrow: ensureText(block.eyebrow, sectionLabel),
+        title: ensureText(block.title, sectionLabel),
+        subtitle: ensureText(block.subtitle, sectionGoal),
+        actionLabel: ensureText(block.actionLabel, "Learn more"),
       };
     case "two_column":
       return {
         ...block,
-        leftTitle: fillText(block.leftTitle, `${sectionLabel} left`),
-        leftBody: fillText(block.leftBody, sectionGoal),
-        rightTitle: fillText(block.rightTitle, `${sectionLabel} right`),
-        rightBody: fillText(block.rightBody, sectionGoal),
+        leftTitle: ensureText(block.leftTitle, `${sectionLabel} left`),
+        leftBody: ensureText(block.leftBody, sectionGoal),
+        rightTitle: ensureText(block.rightTitle, `${sectionLabel} right`),
+        rightBody: ensureText(block.rightBody, sectionGoal),
       };
     case "image_with_copy":
       return {
         ...block,
-        title: fillText(block.title, sectionLabel),
-        body: fillText(block.body, sectionGoal),
+        title: ensureText(block.title, sectionLabel),
+        body: ensureText(block.body, sectionGoal),
       };
     case "callout":
       return {
         ...block,
-        label: fillText(block.label, sectionLabel),
-        body: fillText(block.body, sectionGoal),
+        label: ensureText(block.label, sectionLabel),
+        body: ensureText(block.body, sectionGoal),
       };
     case "quote":
       return {
         ...block,
-        quote: fillText(block.quote, sectionGoal),
-        attribution: fillText(block.attribution, sectionLabel),
+        quote: ensureText(block.quote, sectionGoal),
+        attribution: ensureText(block.attribution, sectionLabel),
       };
     case "cta_banner":
       return {
         ...block,
-        title: fillText(block.title, sectionLabel),
-        body: fillText(block.body, sectionGoal),
-        actionLabel: fillText(block.actionLabel, "Learn more"),
+        title: ensureText(block.title, sectionLabel),
+        body: ensureText(block.body, sectionGoal),
+        actionLabel: ensureText(block.actionLabel, "Learn more"),
       };
     case "feature_grid": {
       const items = Array.isArray(block.items)
@@ -136,8 +130,8 @@ function ensureRenderableBlock(
         ...block,
         items: items.length
           ? items.map((item, index) => ({
-              title: fillText(item.title, `${sectionLabel} ${index + 1}`),
-              body: fillText(item.body, sectionGoal),
+              title: ensureText(item.title, `${sectionLabel} ${index + 1}`),
+              body: ensureText(item.body, sectionGoal),
             }))
           : [
               {
@@ -156,119 +150,6 @@ function ensureRenderableBlock(
   }
 }
 
-function hydrateNodesFromPreview(
-  blockType: string,
-  nodes: JSONContent[],
-  rawPreview: string
-) {
-  if (!nodes.length || !rawPreview.trim()) {
-    return nodes;
-  }
-
-  const preview = buildStreamingPreview(
-    blockType as Parameters<typeof buildStreamingPreview>[0],
-    rawPreview
-  );
-  const sections = preview.text
-    .split(/\n{2,}/)
-    .map((section) => section.trim())
-    .filter(Boolean);
-
-  if (!sections.length) {
-    return nodes;
-  }
-
-  return nodes.map((node, index) => {
-    if (index !== 0 || !node.attrs) {
-      return node;
-    }
-
-    switch (blockType) {
-      case "cta_banner":
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            title: fillText(node.attrs.title, sections[0]),
-            body: fillText(node.attrs.body, sections[1]),
-            actionLabel: fillText(node.attrs.actionLabel, sections[2] ?? sections[0]),
-          },
-        };
-      case "hero_section":
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            title: fillText(node.attrs.title, sections[0]),
-            subtitle: fillText(node.attrs.subtitle, sections[1]),
-            actionLabel: fillText(node.attrs.actionLabel, sections[2]),
-          },
-        };
-      case "two_column":
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            leftTitle: fillText(node.attrs.leftTitle, sections[0]),
-            leftBody: fillText(node.attrs.leftBody, sections[1]),
-            rightTitle: fillText(node.attrs.rightTitle, sections[2]),
-            rightBody: fillText(node.attrs.rightBody, sections[3]),
-          },
-        };
-      case "image_with_copy":
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            title: fillText(node.attrs.title, sections[0]),
-            body: fillText(node.attrs.body, sections[1]),
-          },
-        };
-      case "callout":
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            label: fillText(node.attrs.label, sections[0]),
-            body: fillText(node.attrs.body, sections[1]),
-          },
-        };
-      case "quote":
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            quote: fillText(node.attrs.quote, sections[0]),
-            attribution: fillText(node.attrs.attribution, sections[1]),
-          },
-        };
-      case "feature_grid": {
-        const pairs = [];
-
-        for (let cursor = 0; cursor < sections.length; cursor += 2) {
-          pairs.push([sections[cursor], sections[cursor + 1]]);
-        }
-
-        return {
-          ...node,
-          attrs: {
-            ...node.attrs,
-            item1Title: fillText(node.attrs.item1Title, pairs[0]?.[0]),
-            item1Body: fillText(node.attrs.item1Body, pairs[0]?.[1]),
-            item2Title: fillText(node.attrs.item2Title, pairs[1]?.[0]),
-            item2Body: fillText(node.attrs.item2Body, pairs[1]?.[1]),
-            item3Title: fillText(node.attrs.item3Title, pairs[2]?.[0]),
-            item3Body: fillText(node.attrs.item3Body, pairs[2]?.[1]),
-            item4Title: fillText(node.attrs.item4Title, pairs[3]?.[0]),
-            item4Body: fillText(node.attrs.item4Body, pairs[3]?.[1]),
-          },
-        };
-      }
-      default:
-        return node;
-    }
-  });
-}
 
 export async function GET(request: Request, { params }: { params: Promise<{ jobId: string }> }) {
   const authState = await requireRequestUser(request);
@@ -489,7 +370,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
             });
 
             const nodes = hydrateNodesFromPreview(
-              block.type,
               blockDataToNodes(
                 block.blockId,
                 ensureRenderableBlock(
@@ -501,7 +381,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
                 block.label,
                 contentType,
               ),
-              preview
+              buildStreamingPreview(
+                block.type as Parameters<typeof buildStreamingPreview>[0],
+                preview,
+              ).text,
             );
             currentJson = replacePlaceholderWithNodes(
               currentJson,
